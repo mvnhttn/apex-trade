@@ -1,9 +1,9 @@
 fastapi==0.115.0
 uvicorn==0.30.6
 yfinance>=0.2.50
-pandas==2.2.2
+pandas>=2.2.2
+numpy>=1.26.4
 ta==0.11.0
-numpy==1.26.4
 requests==2.32.3
 python-multipart==0.0.9
 curl_cffi>=0.7.0
