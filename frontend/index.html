@@ -1481,7 +1481,7 @@
       <!-- Positions -->
       <div style="display:flex;flex-direction:column;gap:14px">
         <!-- Position hinzufügen -->
-        <div class="pf-add-row">
+        <div class="pf-add-row" style="flex-wrap:wrap;gap:8px">
           <div class="jf-group">
             <div class="jf-label">SYMBOL</div>
             <input class="jf-input" id="pfSymbol" type="text" placeholder="NVDA" oninput="this.value=this.value.toUpperCase()" style="width:90px">
@@ -1495,6 +1495,18 @@
             <input class="jf-input" id="pfEntry" type="number" step="any" min="0" placeholder="100.00" style="width:110px">
           </div>
           <div class="jf-group">
+            <div class="jf-label">STOP-LOSS ($)</div>
+            <input class="jf-input" id="pfStop" type="number" step="any" min="0" placeholder="95.00" style="width:110px">
+          </div>
+          <div class="jf-group">
+            <div class="jf-label">TAKE-PROFIT ($)</div>
+            <input class="jf-input" id="pfTP" type="number" step="any" min="0" placeholder="120.00" style="width:110px">
+          </div>
+          <div class="jf-group">
+            <div class="jf-label">TRAIL-STOP (%)</div>
+            <input class="jf-input" id="pfTrail" type="number" step="0.1" min="0" max="50" placeholder="5.0" style="width:100px" title="Trailing Stop: Stop-Loss zieht mit, wenn Kurs steigt">
+          </div>
+          <div class="jf-group">
             <div class="jf-label">DATUM</div>
             <input class="jf-input" id="pfDate" type="date" style="width:130px">
           </div>
@@ -1506,7 +1518,7 @@
           <div style="overflow-x:auto">
             <table class="pf-table">
               <thead>
-                <tr><th>SYMBOL</th><th>ANZAHL</th><th>EK</th><th>AKT. KURS</th><th>WERT</th><th>P&amp;L</th><th>RETURN</th><th></th></tr>
+                <tr><th>SYMBOL</th><th>ANZAHL</th><th>EK</th><th>AKT. KURS</th><th>STOP-LOSS</th><th>TAKE-PROFIT</th><th>DIST. STOP</th><th>WERT</th><th>P&amp;L</th><th>RETURN</th><th>STATUS</th><th></th></tr>
               </thead>
               <tbody id="pfTableBody"></tbody>
             </table>
@@ -1872,6 +1884,8 @@ async function loadAllAssets() {
       } : null).filter(Boolean);
       allAssets = [...standard, ...customData];
       checkAlerts(allAssets);
+      updateTrailingStops();
+      checkPortfolioStops();
       renderSidebar();
       renderHeaderTicker();
       return;
@@ -3552,11 +3566,25 @@ function addPosition() {
   const ep    = parseFloat(document.getElementById('pfEntry')?.value) || 0;
   const date  = document.getElementById('pfDate')?.value || new Date().toISOString().slice(0,10);
   if(!sym || sz<=0 || ep<=0) { alert('Symbol, Anzahl und EK-Preis sind Pflichtfelder.'); return; }
+  const sl    = parseFloat(document.getElementById('pfStop')?.value)  || null;
+  const tp    = parseFloat(document.getElementById('pfTP')?.value)    || null;
+  const trail = parseFloat(document.getElementById('pfTrail')?.value) || null;
   const asset = allAssets.find(a => a.symbol === sym);
   const name  = asset?.name || sym;
-  portfolio.push({ id: Date.now().toString(), symbol:sym, name, size:sz, entryPrice:ep, date });
+  // Trailing Stop: initialer Stop = max(sl, price*(1-trail%)) wenn price bekannt
+  let effectiveSl = sl;
+  if(trail && asset?.price) {
+    const trailSl = asset.price * (1 - trail/100);
+    effectiveSl = sl ? Math.max(sl, trailSl) : trailSl;
+  }
+  portfolio.push({
+    id: Date.now().toString(), symbol:sym, name, size:sz, entryPrice:ep, date,
+    stopLoss: effectiveSl, takeProfit: tp, trailingStopPct: trail,
+    peakPrice: asset?.price || ep,  // für Trailing-Stop-Tracking
+    stopHit: false, tpHit: false
+  });
   savePortfolio();
-  ['pfSymbol','pfSize','pfEntry'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['pfSymbol','pfSize','pfEntry','pfStop','pfTP','pfTrail'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   renderPortfolio();
 }
 
@@ -3575,34 +3603,82 @@ function renderPortfolio() {
   const totalPnl    = totalValue - totalCost;
   const totalReturn = totalCost > 0 ? (totalPnl / totalCost * 100) : 0;
 
+  // Stop-Verletzungen zählen
+  const stopBreaches = portfolio.filter(p => {
+    const cur = allAssets.find(a => a.symbol === p.symbol)?.price || p.entryPrice;
+    return p.stopLoss && cur <= p.stopLoss;
+  }).length;
+  const tpReached = portfolio.filter(p => {
+    const cur = allAssets.find(a => a.symbol === p.symbol)?.price || p.entryPrice;
+    return p.takeProfit && cur >= p.takeProfit;
+  }).length;
+
   // Stats
   document.getElementById('pfStatRow').innerHTML = `
     <div class="pf-stat-card"><div class="pf-stat-label">PORTFOLIOWERT</div><div class="pf-stat-value" style="color:var(--accent-cyan)">$${fmt(totalValue,2)}</div></div>
     <div class="pf-stat-card"><div class="pf-stat-label">INVESTIERT</div><div class="pf-stat-value" style="color:var(--text-primary)">$${fmt(totalCost,2)}</div></div>
     <div class="pf-stat-card"><div class="pf-stat-label">UNREAL. P&L</div><div class="pf-stat-value" style="color:${totalPnl>=0?'var(--accent-green)':'var(--accent-red)'}">${totalPnl>=0?'+':''}$${fmt(Math.abs(totalPnl),2)}</div></div>
     <div class="pf-stat-card"><div class="pf-stat-label">RETURN</div><div class="pf-stat-value" style="color:${totalReturn>=0?'var(--accent-green)':'var(--accent-red)'}">${totalReturn>=0?'+':''}${fmt(totalReturn,2)}%</div></div>
+    ${stopBreaches>0?`<div class="pf-stat-card" style="border-color:var(--accent-red)"><div class="pf-stat-label" style="color:var(--accent-red)">STOP VERLETZT</div><div class="pf-stat-value" style="color:var(--accent-red)">${stopBreaches} POSITION${stopBreaches>1?'EN':''}</div></div>`:''}
+    ${tpReached>0?`<div class="pf-stat-card" style="border-color:var(--accent-green)"><div class="pf-stat-label" style="color:var(--accent-green)">TAKE-PROFIT</div><div class="pf-stat-value" style="color:var(--accent-green)">${tpReached} ERREICHT</div></div>`:''}
   `;
 
   // Tabelle
   const tbody = document.getElementById('pfTableBody');
   if(!portfolio.length) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;font-size:10px">Noch keine Positionen · Oben Position hinzufügen</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:24px;font-size:10px">Noch keine Positionen · Oben Position hinzufügen</td></tr>`;
   } else {
     tbody.innerHTML = portfolio.map(p => {
-      const curPrice = allAssets.find(a => a.symbol === p.symbol)?.price || p.entryPrice;
-      const value    = p.size * curPrice;
-      const cost     = p.size * p.entryPrice;
-      const pnl      = value - cost;
-      const ret      = (pnl / cost * 100);
-      const pc       = pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-      return `<tr onclick="selectAsset('${p.symbol}');switchTab('analyse')" style="cursor:pointer">
+      const curPrice  = allAssets.find(a => a.symbol === p.symbol)?.price || p.entryPrice;
+      const value     = p.size * curPrice;
+      const cost      = p.size * p.entryPrice;
+      const pnl       = value - cost;
+      const ret       = (pnl / cost * 100);
+      const pc        = pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+      const slHit     = p.stopLoss  && curPrice <= p.stopLoss;
+      const tpHit     = p.takeProfit && curPrice >= p.takeProfit;
+      const rowBorder = slHit ? 'border-left:2px solid var(--accent-red)' : tpHit ? 'border-left:2px solid var(--accent-green)' : '';
+
+      // Distanz zum Stop in %
+      const distStop = p.stopLoss ? ((curPrice - p.stopLoss) / curPrice * 100) : null;
+      const distStopFmt = distStop != null
+        ? `<span style="color:${distStop<=2?'var(--accent-red)':distStop<=5?'var(--accent-gold)':'var(--text-muted)'}">${fmt(distStop,1)}%</span>`
+        : '<span style="color:var(--text-muted)">—</span>';
+
+      // Stop-Loss Anzeige
+      const slFmt = p.stopLoss
+        ? `<span style="color:var(--accent-red);font-family:'Space Mono',monospace">${fmtPrice(p.stopLoss,p.symbol)}</span>${p.trailingStopPct?` <span style="color:var(--text-muted);font-size:9px">▲${p.trailingStopPct}%</span>`:''}`
+        : '<span style="color:var(--text-muted)">—</span>';
+
+      // Take-Profit Anzeige
+      const tpFmt = p.takeProfit
+        ? `<span style="color:var(--accent-green);font-family:'Space Mono',monospace">${fmtPrice(p.takeProfit,p.symbol)}</span>`
+        : '<span style="color:var(--text-muted)">—</span>';
+
+      // Status-Badge
+      let statusBadge;
+      if(slHit) {
+        statusBadge = `<span style="background:var(--accent-red);color:#fff;padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:1px">STOP</span>`;
+      } else if(tpHit) {
+        statusBadge = `<span style="background:var(--accent-green);color:#000;padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:1px">TP ✓</span>`;
+      } else if(distStop != null && distStop <= 2) {
+        statusBadge = `<span style="background:rgba(255,59,92,0.25);color:var(--accent-red);padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:1px">WARNUNG</span>`;
+      } else {
+        statusBadge = `<span style="color:var(--accent-green);font-size:9px;letter-spacing:1px">AKTIV</span>`;
+      }
+
+      return `<tr onclick="selectAsset('${p.symbol}');switchTab('analyse')" style="cursor:pointer;${rowBorder}">
         <td style="font-weight:700;color:var(--accent-cyan)">${p.symbol}</td>
         <td style="font-family:'Space Mono',monospace">${fmt(p.size,4)}</td>
         <td style="font-family:'Space Mono',monospace">$${fmt(p.entryPrice,4)}</td>
         <td style="font-family:'Space Mono',monospace">${fmtPrice(curPrice,p.symbol)}</td>
+        <td onclick="event.stopPropagation();pfEditStop('${p.id}')">${slFmt}</td>
+        <td onclick="event.stopPropagation();pfEditTP('${p.id}')">${tpFmt}</td>
+        <td style="text-align:center">${distStopFmt}</td>
         <td style="font-family:'Space Mono',monospace;font-weight:700">$${fmt(value,2)}</td>
         <td style="font-family:'Space Mono',monospace;color:${pc}">${pnl>=0?'+':''}$${fmt(Math.abs(pnl),2)}</td>
         <td style="font-family:'Space Mono',monospace;color:${pc}">${ret>=0?'+':''}${fmt(ret,2)}%</td>
+        <td>${statusBadge}</td>
         <td><button class="pf-del-btn" onclick="event.stopPropagation();removePosition('${p.id}')">✕</button></td>
       </tr>`;
     }).join('');
@@ -3634,6 +3710,72 @@ function renderPortfolio() {
       });
     }
   }
+}
+
+// ── Portfolio: Trailing Stop Update ────────
+// Wird nach jedem Preis-Refresh aufgerufen
+function updateTrailingStops() {
+  if(!portfolio.length) return;
+  let changed = false;
+  portfolio.forEach(p => {
+    if(!p.trailingStopPct) return;
+    const cur = allAssets.find(a => a.symbol === p.symbol)?.price;
+    if(!cur) return;
+    // Peak-Price tracken
+    if(!p.peakPrice || cur > p.peakPrice) {
+      p.peakPrice = cur;
+      // Trailing Stop nach oben anpassen
+      const newSl = cur * (1 - p.trailingStopPct / 100);
+      if(!p.stopLoss || newSl > p.stopLoss) {
+        p.stopLoss = newSl;
+        changed = true;
+      }
+    }
+  });
+  if(changed) savePortfolio();
+}
+
+// ── Portfolio: Stop/TP Breach Alerts ───────
+function checkPortfolioStops() {
+  if(!portfolio.length) return;
+  portfolio.forEach(p => {
+    const cur = allAssets.find(a => a.symbol === p.symbol)?.price;
+    if(!cur) return;
+    if(p.stopLoss && cur <= p.stopLoss && !p.stopHit) {
+      p.stopHit = true;
+      fireNotification(`APEX TRADE — STOP-LOSS`, `${p.symbol} hat Stop-Loss ${fmtPrice(p.stopLoss,p.symbol)} unterschritten · Kurs: ${fmtPrice(cur,p.symbol)}`);
+    }
+    if(p.takeProfit && cur >= p.takeProfit && !p.tpHit) {
+      p.tpHit = true;
+      fireNotification(`APEX TRADE — TAKE-PROFIT`, `${p.symbol} hat Take-Profit ${fmtPrice(p.takeProfit,p.symbol)} erreicht · Kurs: ${fmtPrice(cur,p.symbol)}`);
+    }
+  });
+  savePortfolio();
+}
+
+// ── Portfolio: Stop/TP Inline-Edit ─────────
+function pfEditStop(id) {
+  const pos = portfolio.find(p => p.id === id);
+  if(!pos) return;
+  const cur = allAssets.find(a => a.symbol === pos.symbol)?.price || pos.entryPrice;
+  const val = prompt(`STOP-LOSS für ${pos.symbol} (akt. Kurs: ${fmtPrice(cur,pos.symbol)})\nTrailing Stop %: ${pos.trailingStopPct||'—'}\n\nNeuer Stop-Loss ($):`, pos.stopLoss ? fmt(pos.stopLoss,4) : '');
+  if(val === null) return;
+  const num = parseFloat(val.replace(',','.'));
+  pos.stopLoss = (!val.trim() || isNaN(num)) ? null : num;
+  pos.stopHit  = false; // Reset damit Notification erneut feuert
+  savePortfolio(); renderPortfolio();
+}
+
+function pfEditTP(id) {
+  const pos = portfolio.find(p => p.id === id);
+  if(!pos) return;
+  const cur = allAssets.find(a => a.symbol === pos.symbol)?.price || pos.entryPrice;
+  const val = prompt(`TAKE-PROFIT für ${pos.symbol} (akt. Kurs: ${fmtPrice(cur,pos.symbol)})\n\nNeuer Take-Profit ($):`, pos.takeProfit ? fmt(pos.takeProfit,4) : '');
+  if(val === null) return;
+  const num = parseFloat(val.replace(',','.'));
+  pos.takeProfit = (!val.trim() || isNaN(num)) ? null : num;
+  pos.tpHit = false;
+  savePortfolio(); renderPortfolio();
 }
 
 // ══════════════════════════════════════════
