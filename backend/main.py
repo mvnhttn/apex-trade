@@ -16,6 +16,13 @@ from datetime import datetime
 import time
 import os
 
+# .env Datei laden (falls vorhanden)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+except ImportError:
+    pass
+
 # ── Einfacher In-Memory-Cache ──────────────────────────────────────────────
 _cache: dict = {}  # key → {"data": ..., "ts": float}
 CACHE_TTL = 300    # 5 Minuten
