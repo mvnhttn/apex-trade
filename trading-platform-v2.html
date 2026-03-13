@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APEX TRADING — Professional Markets</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-primary: #080b0f;
+    --bg-secondary: #0d1117;
+    --bg-card: #111820;
+    --bg-hover: #161e28;
+    --border: #1e2d3d;
+    --border-bright: #2a3f55;
+    --text-primary: #e8f4f8;
+    --text-secondary: #7a9bb5;
+    --text-muted: #3d5a73;
+    --accent-cyan: #00d4ff;
+    --accent-green: #00ff88;
+    --accent-red: #ff3b5c;
+    --accent-gold: #ffd700;
+    --accent-orange: #ff8c42;
+    --glow-cyan: 0 0 20px rgba(0,212,255,0.3);
+    --glow-green: 0 0 20px rgba(0,255,136,0.3);
+    --glow-red: 0 0 20px rgba(255,59,92,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* HEADER */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(8,11,15,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--accent-cyan);
+    text-shadow: var(--glow-cyan);
+  }
+
+  .logo span { color: var(--text-secondary); }
+
+  .header-ticker {
+    display: flex;
+    gap: 32px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+  }
+
+  .ticker-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .ticker-name { color: var(--text-muted); letter-spacing: 1px; }
+  .ticker-price { color: var(--text-primary); font-weight: 700; }
+  .ticker-change.up { color: var(--accent-green); }
+  .ticker-change.down { color: var(--accent-red); }
+
+  .header-time {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  /* LAYOUT */
+  .app {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 260px 1fr 320px;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    height: calc(100vh - 64px);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    padding: 8px 4px 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+
+  .asset-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+  }
+
+  .asset-item:hover { background: var(--bg-hover); border-color: var(--border); }
+  .asset-item.active { background: rgba(0,212,255,0.07); border-color: rgba(0,212,255,0.3); }
+
+  .asset-left { display: flex; align-items: center; gap: 10px; }
+
+  .asset-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    font-weight: 800;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .asset-icon.gold { background: rgba(255,215,0,0.15); color: var(--accent-gold); }
+  .asset-icon.silver { background: rgba(192,192,192,0.15); color: #c0c0c0; }
+  .asset-icon.copper { background: rgba(255,140,66,0.15); color: var(--accent-orange); }
+  .asset-icon.btc { background: rgba(247,147,26,0.15); color: #f7931a; }
+  .asset-icon.eth { background: rgba(98,126,234,0.15); color: #627eea; }
+  .asset-icon.stock { background: rgba(0,212,255,0.1); color: var(--accent-cyan); font-size: 9px; }
+
+  .asset-name { font-size: 13px; font-weight: 700; }
+  .asset-sub { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--text-muted); margin-top: 1px; }
+
+  .asset-right { text-align: right; }
+  .asset-price { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; }
+  .asset-pct { font-family: 'Space Mono', monospace; font-size: 10px; margin-top: 2px; }
+  .asset-pct.up { color: var(--accent-green); }
+  .asset-pct.down { color: var(--accent-red); }
+
+  /* SIGNAL BADGE */
+  .signal-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 700;
+  }
+  .signal-badge.buy { background: rgba(0,255,136,0.15); color: var(--accent-green); border: 1px solid rgba(0,255,136,0.3); }
+  .signal-badge.sell { background: rgba(255,59,92,0.15); color: var(--accent-red); border: 1px solid rgba(255,59,92,0.3); }
+  .signal-badge.hold { background: rgba(255,215,0,0.15); color: var(--accent-gold); border: 1px solid rgba(255,215,0,0.3); }
+  .signal-badge.watch { background: rgba(0,212,255,0.1); color: var(--accent-cyan); border: 1px solid rgba(0,212,255,0.2); }
+
+  /* MAIN CONTENT */
+  .main {
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .main::-webkit-scrollbar { width: 4px; }
+  .main::-webkit-scrollbar-track { background: transparent; }
+  .main::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+  /* ASSET HEADER */
+  .asset-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 20px 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  .asset-header-left h1 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .asset-header-left p {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  .price-display {
+    text-align: right;
+  }
+
+  .price-big {
+    font-family: 'Space Mono', monospace;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    text-shadow: var(--glow-cyan);
+  }
+
+  .price-change {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    margin-top: 4px;
+  }
+
+  .price-change.up { color: var(--accent-green); }
+  .price-change.down { color: var(--accent-red); }
+
+  /* SIGNAL PANEL */
+  .signal-panel {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .signal-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+  }
+
+  .signal-card:hover { border-color: var(--border-bright); }
+
+  .signal-card.buy-card { border-color: rgba(0,255,136,0.3); background: rgba(0,255,136,0.04); }
+  .signal-card.sell-card { border-color: rgba(255,59,92,0.3); background: rgba(255,59,92,0.04); }
+
+  .signal-card-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .signal-card-value {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+
+  .signal-card-value.green { color: var(--accent-green); }
+  .signal-card-value.red { color: var(--accent-red); }
+  .signal-card-value.gold { color: var(--accent-gold); }
+  .signal-card-value.cyan { color: var(--accent-cyan); }
+
+  .signal-card-sub {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+
+  /* CHART */
+  .chart-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .chart-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-secondary);
+  }
+
+  .timeframe-buttons {
+    display: flex;
+    gap: 4px;
+  }
+
+  .tf-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+  }
+
+  .tf-btn:hover, .tf-btn.active {
+    background: rgba(0,212,255,0.1);
+    border-color: rgba(0,212,255,0.4);
+    color: var(--accent-cyan);
+  }
+
+  canvas { width: 100% !important; }
+
+  /* INDICATORS GRID */
+  .indicators-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .indicator-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+
+  .ind-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .ind-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+  }
+
+  .ind-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .ind-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .ind-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  .ind-interpretation {
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* SUPPORT/RESISTANCE */
+  .levels-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .level-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+
+  .level-row:last-child { border-bottom: none; }
+  .level-label { color: var(--text-secondary); font-size: 10px; }
+  .level-price { font-weight: 700; }
+  .level-price.resistance { color: var(--accent-red); }
+  .level-price.support { color: var(--accent-green); }
+  .level-price.current { color: var(--accent-cyan); }
+
+  /* RIGHT PANEL */
+  .right-panel {
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .right-panel::-webkit-scrollbar { width: 4px; }
+  .right-panel::-webkit-scrollbar-track { background: transparent; }
+  .right-panel::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+  .panel-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .panel-card-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* FUNDAMENTALS */
+  .fundamental-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(30,45,61,0.5);
+    font-size: 12px;
+  }
+
+  .fundamental-row:last-child { border-bottom: none; }
+  .fund-label { color: var(--text-secondary); }
+  .fund-value { font-family: 'Space Mono', monospace; font-weight: 700; }
+  .fund-value.positive { color: var(--accent-green); }
+  .fund-value.negative { color: var(--accent-red); }
+
+  /* ANALYST TARGETS */
+  .analyst-bar-container { margin: 12px 0; }
+  .analyst-label-row {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    margin-bottom: 6px;
+  }
+  .analyst-bar-bg {
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .analyst-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent-red), var(--accent-gold), var(--accent-green));
+  }
+  .analyst-needle {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 14px;
+    background: white;
+    border-radius: 1px;
+    transform: translateX(-50%);
+  }
+
+  /* NEWS */
+  .news-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .news-item:last-child { border-bottom: none; }
+  .news-headline { font-size: 12px; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
+  .news-meta { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--text-muted); }
+  .news-sentiment {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 4px;
+  }
+  .news-sentiment.positive { background: var(--accent-green); }
+  .news-sentiment.negative { background: var(--accent-red); }
+  .news-sentiment.neutral { background: var(--text-muted); }
+
+  /* SIGNAL SUMMARY */
+  .signal-summary {
+    text-align: center;
+    padding: 16px;
+  }
+
+  .signal-big {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .signal-big.BUY { color: var(--accent-green); text-shadow: var(--glow-green); }
+  .signal-big.SELL { color: var(--accent-red); text-shadow: var(--glow-red); }
+  .signal-big.HOLD { color: var(--accent-gold); }
+  .signal-big.WATCH { color: var(--accent-cyan); text-shadow: var(--glow-cyan); }
+
+  .signal-score {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+
+  .signal-reasons { text-align: left; }
+  .signal-reason {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    padding: 4px 0;
+    color: var(--text-secondary);
+  }
+
+  .signal-reason::before {
+    content: '▸';
+    color: var(--accent-cyan);
+    font-size: 10px;
+  }
+
+  /* ENTRY ZONES */
+  .entry-zone {
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid;
+  }
+  .entry-zone.buy { border-color: rgba(0,255,136,0.3); background: rgba(0,255,136,0.05); }
+  .entry-zone.wait { border-color: rgba(255,215,0,0.3); background: rgba(255,215,0,0.05); }
+  .entry-zone-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .entry-zone.buy .entry-zone-label { color: var(--accent-green); }
+  .entry-zone.wait .entry-zone-label { color: var(--accent-gold); }
+  .entry-zone-price {
+    font-family: 'Space Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .entry-zone-desc { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* PROGRESS BAR for RSI etc */
+  .rsi-low { background: var(--accent-green); }
+  .rsi-mid { background: var(--accent-gold); }
+  .rsi-high { background: var(--accent-red); }
+
+  /* TABS */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .tab-btn.active {
+    color: var(--accent-cyan);
+    border-bottom-color: var(--accent-cyan);
+  }
+
+  /* LOADING PULSE */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .live-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: var(--accent-green);
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: pulse 1.5s infinite;
+    box-shadow: 0 0 8px var(--accent-green);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in { animation: fadeIn 0.3s ease forwards; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  @media (max-width: 1200px) {
+    .app { grid-template-columns: 220px 1fr; }
+    .right-panel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">APEX<span>TRADE</span></div>
+  <div class="header-ticker" id="headerTicker"></div>
+  <div class="header-time">
+    <div><span class="live-dot"></span><span id="liveTime"></span></div>
+    <div style="color: var(--text-muted); font-size: 10px; margin-top: 2px;">LIVE MARKETS</div>
+  </div>
+</header>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="section-label">Rohstoffe</div>
+    <div id="commodityList"></div>
+    <div class="section-label" style="margin-top:8px;">Krypto</div>
+    <div id="cryptoList"></div>
+    <div class="section-label" style="margin-top:8px;">Aktien</div>
+    <div id="stockList"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main" id="mainContent"></div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel" id="rightPanel"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// DATA ENGINE
+// ═══════════════════════════════════════════════
+
+const ASSETS = {
+  commodities: [
+    { id: 'gold', name: 'Gold', symbol: 'XAU', icon: 'AU', iconClass: 'gold', price: 2912.50, change: +1.24, changeAmt: +35.60,
+      signal: 'BUY', rsi: 58, macd: 'Bullish', ma50: 2780, ma200: 2560, support1: 2850, support2: 2780, resistance1: 2950, resistance2: 3020,
+      entry1: '2850–2870', entry2: '2780–2800', stop: '2740', target: '3020–3100',
+      pe: '—', eps: '—', revenue: '—', marketCap: '—',
+      description: 'Edelmetall / Safe Haven Asset',
+      type: 'commodity', unit: '$/oz',
+      analystLow: 2600, analystMid: 3050, analystHigh: 3500, analystCurrent: 2912,
+      news: [
+        { h: 'Fed hält Zinsen stabil – Gold profitiert von Dollar-Schwäche', s: 'positive', t: '2h ago' },
+        { h: 'Zentralbanken kaufen weiterhin massiv Gold – Rekordniveau Q4', s: 'positive', t: '5h ago' },
+        { h: 'Goldman Sachs hebt Goldpreis-Ziel auf $3,000 an', s: 'positive', t: '1d ago' },
+      ],
+      desc_long: 'Gold befindet sich in einem starken Aufwärtstrend seit 2023. Stützende Faktoren: Zentralbankkäufe auf Rekordniveau, geopolitische Unsicherheiten, schwacher Dollar und erwartete Fed-Zinssenkungen 2025.'
+    },
+    { id: 'silver', name: 'Silber', symbol: 'XAG', icon: 'AG', iconClass: 'silver', price: 88.40, change: +3.12, changeAmt: +2.68,
+      signal: 'WATCH', rsi: 74, macd: 'Bullish', ma50: 72, ma200: 45, support1: 78, support2: 65, resistance1: 92, resistance2: 105,
+      entry1: '78–80', entry2: '65–68', stop: '61', target: '95–105',
+      pe: '—', eps: '—', revenue: '—', marketCap: '—',
+      description: 'Edelmetall & Industriemetall',
+      type: 'commodity', unit: '$/oz',
+      analystLow: 60, analystMid: 85, analystHigh: 120, analystCurrent: 88,
+      news: [
+        { h: 'Silber-Rally: +65% seit Januar durch AI & Solar-Nachfrage', s: 'positive', t: '1h ago' },
+        { h: 'J.P. Morgan: RSI überkauft – Pullback wahrscheinlich', s: 'negative', t: '3h ago' },
+        { h: 'Industrienachfrage Silber: Solar-Panels auf Rekordhoch', s: 'positive', t: '8h ago' },
+      ],
+      desc_long: 'Silber explodiert 2026 durch doppelte Nachfrage: Edelmetall-Spekulation UND industrielle Nutzung für Solar, KI-Rechenzentren und E-Mobilität. RSI überkauft – Einstieg erst bei Pullback empfohlen.'
+    },
+    { id: 'copper', name: 'Kupfer', symbol: 'HG', icon: 'CU', iconClass: 'copper', price: 4.82, change: +0.87, changeAmt: +0.042,
+      signal: 'BUY', rsi: 55, macd: 'Bullish', ma50: 4.45, ma200: 4.10, support1: 4.60, support2: 4.30, resistance1: 5.00, resistance2: 5.40,
+      entry1: '4.55–4.65', entry2: '4.30–4.40', stop: '4.15', target: '5.00–5.40',
+      pe: '—', eps: '—', revenue: '—', marketCap: '—',
+      description: 'Industriemetall / Energiewende',
+      type: 'commodity', unit: '$/lb',
+      analystLow: 3.80, analystMid: 5.20, analystHigh: 6.50, analystCurrent: 4.82,
+      news: [
+        { h: 'Freeport Grasberg Mine: Produktion 70% reduziert nach Unfall', s: 'negative', t: '2h ago' },
+        { h: 'KI-Boom: Data Center Kupfer-Nachfrage +110.000 MT in 2026', s: 'positive', t: '6h ago' },
+        { h: 'Chile erhöht Kupferproduktrionsziel um 8% für 2026', s: 'neutral', t: '1d ago' },
+      ],
+      desc_long: 'Kupfer ist das Metall der Energiewende. Bullische Faktoren: KI-Datenzentren, Elektrofahrzeuge, Solarenergie. Angebotsschock durch Grasberg-Unfall. Analysten-Konsens: Bullisch für H1 2026.'
+    },
+  ],
+  crypto: [
+    { id: 'btc', name: 'Bitcoin', symbol: 'BTC', icon: '₿', iconClass: 'btc', price: 84250, change: -2.14, changeAmt: -1840,
+      signal: 'HOLD', rsi: 48, macd: 'Neutral', ma50: 82000, ma200: 65000, support1: 78000, support2: 68000, resistance1: 92000, resistance2: 108000,
+      entry1: '78k–80k', entry2: '68k–70k', stop: '64k', target: '95k–108k',
+      pe: '—', eps: '—', revenue: '—', marketCap: '$1.65T',
+      description: 'Digitales Gold / Store of Value',
+      type: 'crypto', unit: '$',
+      analystLow: 60000, analystMid: 100000, analystHigh: 150000, analystCurrent: 84250,
+      news: [
+        { h: 'Bitcoin ETF Zuflüsse: +$800M diese Woche', s: 'positive', t: '3h ago' },
+        { h: 'Mt. Gox Transfers belasten Stimmung kurzfristig', s: 'negative', t: '5h ago' },
+        { h: 'MicroStrategy kauft weitere 5.000 BTC', s: 'positive', t: '1d ago' },
+      ],
+      desc_long: 'Bitcoin korrigiert nach ATH-Phase. RSI neutral – kein Überkauf mehr. Institutionelle Zuflüsse über ETFs bleiben stark. Halving-Effekte laufen 6–18 Monate nach dem Event.'
+    },
+    { id: 'eth', name: 'Ethereum', symbol: 'ETH', icon: 'Ξ', iconClass: 'eth', price: 2340, change: -3.40, changeAmt: -82,
+      signal: 'WATCH', rsi: 42, macd: 'Bearish', ma50: 2600, ma200: 2100, support1: 2100, support2: 1800, resistance1: 2700, resistance2: 3200,
+      entry1: '2100–2200', entry2: '1800–1900', stop: '1650', target: '2800–3200',
+      pe: '—', eps: '—', revenue: '—', marketCap: '$281B',
+      description: 'Smart Contract Plattform',
+      type: 'crypto', unit: '$',
+      analystLow: 1500, analystMid: 3000, analystHigh: 5000, analystCurrent: 2340,
+      news: [
+        { h: 'Ethereum Pectra Upgrade: Skalierung verbessert', s: 'positive', t: '1h ago' },
+        { h: 'ETH underperformt BTC weiterhin – Relative Stärke schwach', s: 'negative', t: '4h ago' },
+        { h: 'DeFi TVL steigt auf $120B – Nachfrage nach ETH Gas steigt', s: 'positive', t: '12h ago' },
+      ],
+      desc_long: 'Ethereum underperformt 2026. RSI zeigt keine Überkaufsituation mehr. Gutes Setup für mittel-/langfristigen Einstieg bei $2100-$2200. Pectra Upgrade als möglicher Katalysator Q2 2026.'
+    },
+  ],
+  stocks: [
+    { id: 'fcx', name: 'Freeport-McMoRan', symbol: 'FCX', icon: 'FCX', iconClass: 'stock', price: 68.38, change: +0.82, changeAmt: +0.56,
+      signal: 'WATCH', rsi: 72, macd: 'Bullish', ma50: 58, ma200: 48, support1: 62, support2: 56, resistance1: 69.50, resistance2: 78,
+      entry1: '62–64', entry2: '56–58', stop: '53', target: '75–82',
+      pe: 28.4, eps: 2.41, revenue: '$25.4B', marketCap: '$98B',
+      description: 'Kupfer / Gold / Molybdän Mining',
+      type: 'stock', unit: '$',
+      analystLow: 52, analystMid: 74, analystHigh: 95, analystCurrent: 68.38,
+      news: [
+        { h: 'FCX Q4 2025: EPS $0.47 vs $0.29 erwartet – +64% Surprise', s: 'positive', t: '3d ago' },
+        { h: 'Grasberg Mine: Produktionsausfall drückt Q1 Guidance', s: 'negative', t: '1w ago' },
+        { h: 'Kupferpreis Rallye: FCX profitiert – ATH in Sicht', s: 'positive', t: '2d ago' },
+      ],
+      desc_long: 'FCX ist der weltgrößte börsennotierte Kupferproduzent. Direkter Hebel auf Kupferpreis (Beta 1.77). Grasberg-Unfall eingepreist – Erholung noch nicht. Einstieg bei $62–64 bevorzugt.'
+    },
+    { id: 'ag', name: 'First Majestic Silver', symbol: 'AG', icon: 'AG', iconClass: 'stock', price: 31.10, change: +8.20, changeAmt: +2.36,
+      signal: 'WATCH', rsi: 79, macd: 'Bullish', ma50: 18, ma200: 10, support1: 24, support2: 20, resistance1: 33, resistance2: 40,
+      entry1: '23–25', entry2: '20–21', stop: '18', target: '35–42',
+      pe: 45, eps: 0.34, revenue: '$1.2B', marketCap: '$9.2B',
+      description: 'Reiner Silber-Produzent (Mexiko/USA)',
+      type: 'stock', unit: '$',
+      analystLow: 14, analystMid: 28, analystHigh: 48, analystCurrent: 31.10,
+      news: [
+        { h: 'AG Q4 2025: Revenue +169% YoY – Rekordquartal', s: 'positive', t: '2d ago' },
+        { h: 'Gatos Silver Akquisition: Silberproduktion massiv erhöht', s: 'positive', t: '5d ago' },
+        { h: 'RSI bei 79 – Überkauft, Analysten raten zu Geduld', s: 'neutral', t: '1d ago' },
+      ],
+      desc_long: 'First Majestic ist der reinste Large-Cap Silber-Play. Nach der Gatos Silver Übernahme +169% Revenue. Momentum ist stark aber RSI überkauft. Warte auf $23–25 für optimalen Einstieg.'
+    },
+    { id: 'nvo', name: 'Newmont Corp.', symbol: 'NEM', icon: 'NEM', iconClass: 'stock', price: 42.80, change: -0.34, changeAmt: -0.15,
+      signal: 'BUY', rsi: 44, macd: 'Neutral', ma50: 40, ma200: 38, support1: 40, support2: 36, resistance1: 47, resistance2: 54,
+      entry1: '40–42', entry2: '36–38', stop: '34', target: '48–55',
+      pe: 18.2, eps: 2.35, revenue: '$18.5B', marketCap: '$48B',
+      description: 'Weltgrößter Goldproduzent',
+      type: 'stock', unit: '$',
+      analystLow: 35, analystMid: 50, analystHigh: 65, analystCurrent: 42.80,
+      news: [
+        { h: 'Newmont reduziert Costs – Operating Cash Flow steigt', s: 'positive', t: '4d ago' },
+        { h: 'Goldpreis Rally: NEM profitiert – Einstiegsniveau attraktiv', s: 'positive', t: '2d ago' },
+        { h: 'Newmont erhöht Dividende um 12%', s: 'positive', t: '1w ago' },
+      ],
+      desc_long: 'Newmont ist die weltgrößte börsennotierte Goldminengesellschaft. Aktuelle Bewertung ist günstig im Gold-Zyklus. RSI bei 44 – kein Überkauf. Dividendenrendite solide. Qualitäts-Hold.'
+    },
+    { id: 'nvda', name: 'Nvidia', symbol: 'NVDA', icon: 'NV', iconClass: 'stock', price: 180.65, change: -5.46, changeAmt: -10.37,
+      signal: 'BUY', rsi: 46, macd: 'Neutral', ma50: 185, ma200: 148, support1: 175, support2: 160, resistance1: 197, resistance2: 212,
+      entry1: '175–180', entry2: '160–165', stop: '154', target: '210–235',
+      pe: 37.75, eps: 6.30, revenue: '$130B (FY2026)', marketCap: '$4.44T',
+      description: 'KI-Chips / GPUs / Data Center Infrastruktur',
+      type: 'stock', unit: '$',
+      analystLow: 140, analystMid: 221, analystHigh: 432, analystCurrent: 180.65,
+      news: [
+        { h: 'NVDA Q4 FY2026: $68.1B Revenue +73% YoY – Rekord', s: 'positive', t: '2d ago' },
+        { h: 'Q1 Guidance $78B – weit über Erwartungen von $72–73B', s: 'positive', t: '2d ago' },
+        { h: 'Kurskorrektur -5.5% nach Earnings: "Buy the dip"?', s: 'neutral', t: '1d ago' },
+      ],
+      desc_long: 'Nvidia ist der unbestrittene KI-Chip-König. Blackwell-Plattform dominiert Rechenzentren. Q4 Earnings massiv übertroffen. Aktuelle Korrektur nach Earnings ist ein klassisches "Buy the dip"-Setup. RSI bei 55 – nicht überkauft.'
+    },
+    { id: 'qbts', name: 'D-Wave Quantum', symbol: 'QBTS', icon: 'QC', iconClass: 'stock', price: 19.81, change: -18.8, changeAmt: -4.58,
+      signal: 'WATCH', rsi: 42, macd: 'Neutral', ma50: 28, ma200: 22, support1: 17, support2: 15, resistance1: 26, resistance2: 32,
+      entry1: '17–18', entry2: '15–16', stop: '13.50', target: '28–42',
+      pe: -14.5, eps: -0.09, revenue: '$24.6M', marketCap: '$7.5B',
+      description: 'Quantencomputer / Annealing & Gate-Model',
+      type: 'stock', unit: '$',
+      analystLow: 22.5, analystMid: 39, analystHigh: 48, analystCurrent: 19.81,
+      news: [
+        { h: 'QBTS FY2025: Revenue +179% auf $24.6M – aber Verlust $355M', s: 'neutral', t: '3d ago' },
+        { h: '$550M Akquisition abgeschlossen – Dual-Platform Strategie', s: 'positive', t: '1w ago' },
+        { h: 'TD Cowen initiiert mit "Buy" – Kursziel $32', s: 'positive', t: '5d ago' },
+      ],
+      desc_long: 'D-Wave ist der einzige duale Quantencomputer-Anbieter (Annealing + Gate-Model). Umsatz explodiert +179%, aber noch tief in Verlusten. 15 von 16 Analysten: Strong Buy. Analysten-Ziel $39 = +98% Upside. Hochspekulativ aber faszinierend.'
+    },
+    { id: 'smci', name: 'Super Micro Computer', symbol: 'SMCI', icon: 'SC', iconClass: 'stock', price: 32.28, change: -3.93, changeAmt: -1.32,
+      signal: 'WATCH', rsi: 45, macd: 'Bearish', ma50: 32, ma200: 42, support1: 29, support2: 27, resistance1: 38, resistance2: 45,
+      entry1: '29–31', entry2: '27–28', stop: '24.50', target: '40–52',
+      pe: 23.5, eps: 0.69, revenue: '$12.7B', marketCap: '$19.3B',
+      description: 'KI-Server / Datacenter Hardware',
+      type: 'stock', unit: '$',
+      analystLow: 15, analystMid: 41, analystHigh: 63, analystCurrent: 32.28,
+      news: [
+        { h: 'SMCI Q2 FY2026: Revenue $12.7B – +123% YoY, EPS Surprise +40%', s: 'positive', t: '3w ago' },
+        { h: 'FY2026 Guidance auf $40B erhöht – starke KI-Server-Nachfrage', s: 'positive', t: '3w ago' },
+        { h: 'Goldman Sachs: "Sell" mit Ziel $27 – Margendruck besorgniserregend', s: 'negative', t: '3w ago' },
+      ],
+      desc_long: 'SMCI liefert AI-Server für Nvidias Blackwell-GPUs. +123% Revenue – aber Margen komprimieren stark. 34% unter MA200. Analysten gespalten: Goldman Sell ($27) vs. Argus Buy ($64). Warte auf Bodenbildung bei $29–31 bevor Einstieg.'
+    },
+  ]
+};
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let selectedAsset = ASSETS.commodities[2]; // Default: Kupfer
+let chartInstance = null;
+let priceAnimationInterval = null;
+
+// ═══════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════
+function fmt(n, decimals=2) {
+  if(typeof n !== 'number') return n;
+  return n.toLocaleString('de-DE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function getSignalColor(signal) {
+  const map = { 'BUY': 'var(--accent-green)', 'SELL': 'var(--accent-red)', 'HOLD': 'var(--accent-gold)', 'WATCH': 'var(--accent-cyan)' };
+  return map[signal] || 'var(--text-primary)';
+}
+
+function getRSIColor(rsi) {
+  if(rsi < 35) return 'var(--accent-green)';
+  if(rsi > 70) return 'var(--accent-red)';
+  return 'var(--accent-gold)';
+}
+
+function getRSIText(rsi) {
+  if(rsi < 30) return 'STARK ÜBERVERKAUFT';
+  if(rsi < 40) return 'Überverkauft';
+  if(rsi < 60) return 'Neutral';
+  if(rsi < 70) return 'Leicht überkauft';
+  if(rsi < 80) return 'Überkauft';
+  return 'STARK ÜBERKAUFT';
+}
+
+function generateChartData(basePrice, days=60) {
+  const data = [];
+  let price = basePrice * 0.85;
+  for(let i = 0; i < days; i++) {
+    price *= (1 + (Math.random() - 0.47) * 0.025);
+    data.push(+price.toFixed(2));
+  }
+  data[data.length-1] = basePrice;
+  return data;
+}
+
+function generateLabels(days=60) {
+  const labels = [];
+  const now = new Date();
+  for(let i = days-1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    labels.push(d.toLocaleDateString('de-DE', { day:'2-digit', month:'short' }));
+  }
+  return labels;
+}
+
+// ═══════════════════════════════════════════════
+// HEADER TICKER
+// ═══════════════════════════════════════════════
+function renderHeaderTicker() {
+  const allAssets = [...ASSETS.commodities, ...ASSETS.crypto, ...ASSETS.stocks];
+  const show = [ASSETS.commodities[0], ASSETS.commodities[1], ASSETS.commodities[2], ASSETS.crypto[0], ASSETS.stocks[0]];
+  const el = document.getElementById('headerTicker');
+  el.innerHTML = show.map(a => `
+    <div class="ticker-item">
+      <span class="ticker-name">${a.symbol}</span>
+      <span class="ticker-price">${a.type === 'stock' ? '$'+fmt(a.price) : a.type==='crypto'&&a.price>1000?'$'+fmt(a.price,0):'$'+fmt(a.price)}</span>
+      <span class="ticker-change ${a.change > 0 ? 'up':'down'}">${a.change>0?'+':''}${fmt(a.change)}%</span>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════
+// LIVE CLOCK
+// ═══════════════════════════════════════════════
+function updateClock() {
+  const el = document.getElementById('liveTime');
+  if(el) el.textContent = new Date().toLocaleTimeString('de-DE');
+}
+
+// ═══════════════════════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════════════════════
+function renderSidebar() {
+  renderAssetList('commodityList', ASSETS.commodities);
+  renderAssetList('cryptoList', ASSETS.crypto);
+  renderAssetList('stockList', ASSETS.stocks);
+}
+
+function renderAssetList(containerId, assets) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = assets.map(a => `
+    <div class="asset-item ${a.id === selectedAsset.id ? 'active':''}" onclick="selectAsset('${a.id}')">
+      <div class="asset-left">
+        <div class="asset-icon ${a.iconClass}">${a.icon}</div>
+        <div>
+          <div class="asset-name">${a.name}</div>
+          <div class="asset-sub">${a.symbol}</div>
+        </div>
+      </div>
+      <div class="asset-right">
+        <div class="asset-price">${a.type==='crypto'&&a.price>1000?'$'+fmt(a.price,0):a.type==='commodity'&&a.price<100?'$'+fmt(a.price,3):'$'+fmt(a.price)}</div>
+        <div class="asset-pct ${a.change>0?'up':'down'}">${a.change>0?'+':''}${fmt(a.change)}%</div>
+        <div style="margin-top:4px;"><span class="signal-badge ${a.signal.toLowerCase()}">${a.signal}</span></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectAsset(id) {
+  const all = [...ASSETS.commodities, ...ASSETS.crypto, ...ASSETS.stocks];
+  selectedAsset = all.find(a => a.id === id);
+  renderSidebar();
+  renderMain();
+  renderRightPanel();
+}
+
+// ═══════════════════════════════════════════════
+// MAIN CONTENT
+// ═══════════════════════════════════════════════
+function renderMain() {
+  const a = selectedAsset;
+  const main = document.getElementById('mainContent');
+
+  const signalReasons = getSignalReasons(a);
+  const priceStr = a.type==='crypto'&&a.price>1000 ? '$'+fmt(a.price,0) : '$'+fmt(a.price);
+
+  main.innerHTML = `
+    <!-- ASSET HEADER -->
+    <div class="asset-header fade-in">
+      <div class="asset-header-left">
+        <h1>${a.name} <span style="color:var(--text-muted);font-size:18px;font-weight:400">(${a.symbol})</span></h1>
+        <p>${a.description}</p>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+          <span class="signal-badge ${a.signal.toLowerCase()}" style="font-size:10px;padding:4px 10px;">${a.signal}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text-muted);">RSI: ${a.rsi}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text-muted);">MACD: ${a.macd}</span>
+          <span style="font-size:11px;color:var(--text-secondary);">${a.desc_long.substring(0,80)}...</span>
+        </div>
+      </div>
+      <div class="price-display">
+        <div class="price-big" id="livePriceDisplay">${priceStr}</div>
+        <div class="price-change ${a.change>0?'up':'down'}">${a.change>0?'▲':'▼'} ${a.change>0?'+':''}${fmt(a.change)}% (${a.change>0?'+':''}${a.type==='crypto'&&a.price>1000?fmt(a.changeAmt,0):fmt(a.changeAmt)})</div>
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);margin-top:6px;">UNIT: ${a.unit}</div>
+      </div>
+    </div>
+
+    <!-- SIGNAL CARDS -->
+    <div class="signal-panel fade-in">
+      <div class="signal-card ${a.signal==='BUY'?'buy-card':a.signal==='SELL'?'sell-card':''}">
+        <div class="signal-card-title">SIGNAL</div>
+        <div class="signal-card-value" style="color:${getSignalColor(a.signal)}">${a.signal}</div>
+        <div class="signal-card-sub">${signalReasons[0]}</div>
+      </div>
+      <div class="signal-card">
+        <div class="signal-card-title">RSI (14)</div>
+        <div class="signal-card-value" style="color:${getRSIColor(a.rsi)}">${a.rsi}</div>
+        <div class="signal-card-sub">${getRSIText(a.rsi)}</div>
+      </div>
+      <div class="signal-card">
+        <div class="signal-card-title">MA 50 / 200</div>
+        <div class="signal-card-value cyan">
+          ${a.type==='crypto'&&a.ma50>1000?'$'+fmt(a.ma50,0):'$'+fmt(a.ma50,a.ma50>100?2:3)}
+        </div>
+        <div class="signal-card-sub">200 MA: ${a.type==='crypto'&&a.ma200>1000?'$'+fmt(a.ma200,0):'$'+fmt(a.ma200,a.ma200>100?2:3)}</div>
+      </div>
+      <div class="signal-card">
+        <div class="signal-card-title">MACD</div>
+        <div class="signal-card-value" style="color:${a.macd==='Bullish'?'var(--accent-green)':a.macd==='Bearish'?'var(--accent-red)':'var(--accent-gold)'}">${a.macd}</div>
+        <div class="signal-card-sub">Trend: ${a.macd==='Bullish'?'Aufwärts':a.macd==='Bearish'?'Abwärts':'Seitwärts'}</div>
+      </div>
+    </div>
+
+    <!-- CHART -->
+    <div class="chart-container fade-in">
+      <div class="chart-header">
+        <div class="chart-title">KURSVERLAUF — ${a.symbol}</div>
+        <div class="timeframe-buttons">
+          <button class="tf-btn active" onclick="updateChart('1M',this)">1M</button>
+          <button class="tf-btn" onclick="updateChart('3M',this)">3M</button>
+          <button class="tf-btn" onclick="updateChart('6M',this)">6M</button>
+          <button class="tf-btn" onclick="updateChart('1J',this)">1J</button>
+        </div>
+      </div>
+      <canvas id="priceChart" height="200"></canvas>
+    </div>
+
+    <!-- INDICATORS -->
+    <div class="indicators-grid fade-in">
+      ${renderIndicatorCard('RSI (14)', a.rsi, '%', 0, 100, getRSIColor(a.rsi), getRSIText(a.rsi), 50)}
+      ${renderIndicatorCard('Bollinger %B', 72, '%', 0, 100, 'var(--accent-orange)', a.rsi > 70 ? 'Nahe Oberes Band' : 'Mitte Band', 50)}
+      ${renderIndicatorCard('Stoch RSI', 68, '', 0, 100, 'var(--accent-cyan)', a.rsi > 60 ? 'Leicht überkauft' : 'Neutral', 50)}
+      ${renderIndicatorCard('OBV Trend', 65, '%', 0, 100, 'var(--accent-green)', 'Positiv (Käufer dominant)', 50)}
+      ${renderIndicatorCard('ATR (14)', a.type==='stock'?2.4:a.type==='crypto'?1820:a.price*0.018, a.type==='stock'?'$':a.type==='crypto'?'$':'', 0, a.price, 'var(--accent-gold)', 'Volatilität: Mittel', a.price*0.5, false)}
+      ${renderIndicatorCard('Momentum', a.change > 2 ? 78 : a.change > 0 ? 58 : 38, '', 0, 100, a.change>1?'var(--accent-green)':'var(--accent-gold)', a.change>2?'Stark bullisch':a.change>0?'Leicht bullisch':'Neutral', 50)}
+    </div>
+
+    <!-- LEVELS -->
+    <div class="levels-card fade-in">
+      <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--text-muted);margin-bottom:12px;">SUPPORT & RESISTANCE LEVELS</div>
+      <div class="level-row">
+        <span class="level-label">RESISTANCE 2</span>
+        <span class="level-price resistance">${a.type==='crypto'&&a.resistance2>1000?'$'+fmt(a.resistance2,0):'$'+fmt(a.resistance2)}</span>
+        <span style="font-size:10px;color:var(--text-muted)">+${fmt((a.resistance2/a.price-1)*100,1)}%</span>
+      </div>
+      <div class="level-row">
+        <span class="level-label">RESISTANCE 1</span>
+        <span class="level-price resistance">${a.type==='crypto'&&a.resistance1>1000?'$'+fmt(a.resistance1,0):'$'+fmt(a.resistance1)}</span>
+        <span style="font-size:10px;color:var(--text-muted)">+${fmt((a.resistance1/a.price-1)*100,1)}%</span>
+      </div>
+      <div class="level-row" style="background:rgba(0,212,255,0.04);border-radius:4px;padding:8px;">
+        <span class="level-label">★ AKTUELLER KURS</span>
+        <span class="level-price current">${a.type==='crypto'&&a.price>1000?'$'+fmt(a.price,0):'$'+fmt(a.price)}</span>
+        <span style="font-size:10px;color:var(--accent-cyan)">LIVE</span>
+      </div>
+      <div class="level-row">
+        <span class="level-label">SUPPORT 1</span>
+        <span class="level-price support">${a.type==='crypto'&&a.support1>1000?'$'+fmt(a.support1,0):'$'+fmt(a.support1)}</span>
+        <span style="font-size:10px;color:var(--text-muted)">${fmt((a.support1/a.price-1)*100,1)}%</span>
+      </div>
+      <div class="level-row">
+        <span class="level-label">SUPPORT 2</span>
+        <span class="level-price support">${a.type==='crypto'&&a.support2>1000?'$'+fmt(a.support2,0):'$'+fmt(a.support2)}</span>
+        <span style="font-size:10px;color:var(--text-muted)">${fmt((a.support2/a.price-1)*100,1)}%</span>
+      </div>
+    </div>
+  `;
+
+  renderChart(30);
+}
+
+function renderIndicatorCard(name, value, unit, min, max, color, interpretation, midpoint=50, showBar=true) {
+  const pct = showBar ? Math.min(100, Math.max(0, ((value-min)/(max-min))*100)) : 50;
+  return `
+    <div class="indicator-card">
+      <div class="ind-header">
+        <span class="ind-name">${name}</span>
+        <span class="signal-badge hold" style="font-size:8px">${interpretation.split(' ')[0]}</span>
+      </div>
+      <div class="ind-value" style="color:${color}">${typeof value==='number'&&value>100?fmt(value,0):fmt(value,1)}${unit}</div>
+      ${showBar ? `
+        <div class="ind-bar">
+          <div class="ind-bar-fill" style="width:${pct}%;background:${color}"></div>
+        </div>
+      ` : '<div style="height:10px"></div>'}
+      <div class="ind-interpretation" style="color:${color};font-size:11px">${interpretation}</div>
+    </div>
+  `;
+}
+
+function getSignalReasons(a) {
+  const reasons = [];
+  if(a.rsi < 40) reasons.push('RSI überverkauft');
+  else if(a.rsi > 70) reasons.push('RSI überkauft – Vorsicht');
+  else reasons.push('RSI neutral – OK');
+  if(a.price > a.ma50) reasons.push('Über MA50 – Bullisch');
+  else reasons.push('Unter MA50');
+  if(a.macd === 'Bullish') reasons.push('MACD bullisch');
+  else if(a.macd === 'Bearish') reasons.push('MACD bearisch');
+  reasons.push(`Support bei ${a.type==='crypto'&&a.support1>1000?'$'+fmt(a.support1,0):'$'+fmt(a.support1)}`);
+  return reasons;
+}
+
+// ═══════════════════════════════════════════════
+// CHART
+// ═══════════════════════════════════════════════
+function renderChart(days) {
+  if(chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  const canvas = document.getElementById('priceChart');
+  if(!canvas) return;
+  const a = selectedAsset;
+  const data = generateChartData(a.price, days);
+  const labels = generateLabels(days);
+  const gradient = canvas.getContext('2d').createLinearGradient(0, 0, 0, 300);
+  gradient.addColorStop(0, 'rgba(0,212,255,0.3)');
+  gradient.addColorStop(1, 'rgba(0,212,255,0)');
+
+  chartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: a.symbol,
+        data,
+        borderColor: 'rgba(0,212,255,0.8)',
+        backgroundColor: gradient,
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        fill: true,
+        tension: 0.4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#111820',
+          borderColor: '#1e2d3d',
+          borderWidth: 1,
+          titleColor: '#7a9bb5',
+          bodyColor: '#e8f4f8',
+          bodyFont: { family: 'Space Mono', size: 11 },
+          callbacks: {
+            label: ctx => ' ' + (a.type==='crypto'&&ctx.raw>1000?'$'+fmt(ctx.raw,0):'$'+fmt(ctx.raw))
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(30,45,61,0.5)', drawBorder: false },
+          ticks: { color: '#3d5a73', font: { family: 'Space Mono', size: 9 }, maxTicksLimit: 8 }
+        },
+        y: {
+          grid: { color: 'rgba(30,45,61,0.5)', drawBorder: false },
+          ticks: { color: '#3d5a73', font: { family: 'Space Mono', size: 9 }, callback: v => a.type==='crypto'&&v>1000?'$'+fmt(v,0):'$'+fmt(v) }
+        }
+      }
+    }
+  });
+}
+
+function updateChart(tf, btn) {
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const days = { '1M':30, '3M':90, '6M':180, '1J':365 }[tf];
+  renderChart(days);
+}
+
+// ═══════════════════════════════════════════════
+// RIGHT PANEL
+// ═══════════════════════════════════════════════
+function renderRightPanel() {
+  const a = selectedAsset;
+  const panel = document.getElementById('rightPanel');
+  const pct = Math.min(95, Math.max(5, ((a.analystCurrent - a.analystLow) / (a.analystHigh - a.analystLow)) * 100));
+  const reasons = getSignalReasons(a);
+
+  panel.innerHTML = `
+    <!-- SIGNAL SUMMARY -->
+    <div class="panel-card fade-in">
+      <div class="panel-card-title">TRADING SIGNAL</div>
+      <div class="signal-summary">
+        <div class="signal-big ${a.signal}">${a.signal}</div>
+        <div class="signal-score">Score: ${a.rsi < 40 ? '8.2' : a.rsi > 70 ? '4.1' : '6.5'}/10</div>
+        <div class="signal-reasons">
+          ${reasons.map(r => `<div class="signal-reason">${r}</div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- ENTRY ZONES -->
+    <div class="panel-card fade-in">
+      <div class="panel-card-title">EINSTIEGSZONEN</div>
+      <div class="entry-zone ${a.signal==='BUY'?'buy':'wait'}">
+        <div class="entry-zone-label">${a.signal==='BUY'?'✓ IDEALER EINSTIEG':'⏳ WARTE AUF PULLBACK'}</div>
+        <div class="entry-zone-price">${a.entry1}</div>
+        <div class="entry-zone-desc">1. Einstiegszone – Erstes Support-Level</div>
+      </div>
+      <div class="entry-zone buy">
+        <div class="entry-zone-label">✓ STARKER EINSTIEG</div>
+        <div class="entry-zone-price">${a.entry2}</div>
+        <div class="entry-zone-desc">2. Einstiegszone – Tieferes Support-Level</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:12px;font-family:'Space Mono',monospace;font-size:11px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:9px;margin-bottom:3px">STOP-LOSS</div>
+          <div style="color:var(--accent-red)">${a.stop}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="color:var(--text-muted);font-size:9px;margin-bottom:3px">TARGET</div>
+          <div style="color:var(--accent-green)">${a.target}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANALYST TARGETS -->
+    <div class="panel-card fade-in">
+      <div class="panel-card-title">ANALYSTEN-KURSZIELE</div>
+      <div class="analyst-bar-container">
+        <div class="analyst-label-row">
+          <span style="color:var(--accent-red)">Tief: ${a.type==='crypto'&&a.analystLow>1000?'$'+fmt(a.analystLow,0):'$'+fmt(a.analystLow)}</span>
+          <span style="color:var(--accent-gold)">Ø: ${a.type==='crypto'&&a.analystMid>1000?'$'+fmt(a.analystMid,0):'$'+fmt(a.analystMid)}</span>
+          <span style="color:var(--accent-green)">Hoch: ${a.type==='crypto'&&a.analystHigh>1000?'$'+fmt(a.analystHigh,0):'$'+fmt(a.analystHigh)}</span>
+        </div>
+        <div class="analyst-bar-bg">
+          <div class="analyst-bar-fill" style="width:100%"></div>
+          <div class="analyst-needle" style="left:${pct}%"></div>
+        </div>
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);text-align:center;margin-top:4px;">
+          AKTUELL: ${a.type==='crypto'&&a.analystCurrent>1000?'$'+fmt(a.analystCurrent,0):'$'+fmt(a.analystCurrent)} (${pct.toFixed(0)}. Percentile)
+        </div>
+      </div>
+    </div>
+
+    <!-- FUNDAMENTALS -->
+    ${a.type === 'stock' ? `
+    <div class="panel-card fade-in">
+      <div class="panel-card-title">FUNDAMENTALDATEN</div>
+      <div class="fundamental-row">
+        <span class="fund-label">Marktkapitalisierung</span>
+        <span class="fund-value">${a.marketCap}</span>
+      </div>
+      <div class="fundamental-row">
+        <span class="fund-label">Umsatz (TTM)</span>
+        <span class="fund-value">${a.revenue}</span>
+      </div>
+      <div class="fundamental-row">
+        <span class="fund-label">KGV (P/E)</span>
+        <span class="fund-value ${a.pe < 20 ? 'positive' : a.pe > 40 ? 'negative' : ''}">${a.pe}x</span>
+      </div>
+      <div class="fundamental-row">
+        <span class="fund-label">EPS</span>
+        <span class="fund-value positive">$${a.eps}</span>
+      </div>
+    </div>
+    ` : ''}
+
+    <!-- NEWS -->
+    <div class="panel-card fade-in">
+      <div class="panel-card-title">AKTUELLE NEWS</div>
+      ${a.news.map(n => `
+        <div class="news-item">
+          <div class="news-headline">${n.h}</div>
+          <div class="news-meta"><span class="news-sentiment ${n.s}"></span>${n.t}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════
+// PRICE SIMULATION (subtle live price movement)
+// ═══════════════════════════════════════════════
+function simulateLivePrices() {
+  setInterval(() => {
+    const all = [...ASSETS.commodities, ...ASSETS.crypto, ...ASSETS.stocks];
+    all.forEach(a => {
+      const move = (Math.random() - 0.498) * 0.001;
+      a.price = +(a.price * (1 + move)).toFixed(a.price > 1000 ? 0 : a.price > 10 ? 2 : 3);
+      const origChange = a.change;
+      a.change = +(a.change + (Math.random() - 0.5) * 0.05).toFixed(2);
+    });
+
+    // Update live price display
+    const liveEl = document.getElementById('livePriceDisplay');
+    if(liveEl) {
+      const a = selectedAsset;
+      liveEl.textContent = a.type==='crypto'&&a.price>1000?'$'+fmt(a.price,0):'$'+fmt(a.price);
+    }
+
+    renderHeaderTicker();
+    renderSidebar();
+  }, 2000);
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  renderHeaderTicker();
+  renderSidebar();
+  renderMain();
+  renderRightPanel();
+  updateClock();
+  setInterval(updateClock, 1000);
+  simulateLivePrices();
+});
+</script>
+</body>
+</html>

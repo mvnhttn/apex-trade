@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(echo === Ungültiges Symbol ===:*)",
+      "Bash(python -c \"import yfinance as yf; t = yf.Ticker\\(''GC=F''\\); news = t.news; print\\(type\\(news\\)\\); print\\(len\\(news\\) if news else 0\\); print\\(news[0] if news else ''EMPTY''\\)\")",
+      "Bash(python -c \":*)"
+    ]
+  }
+}
