@@ -1768,24 +1768,57 @@ setInterval(()=>{
 },1000);
 
 // ── Fetch all prices ───────────────────────
-async function loadAllAssets() {
+async function fetchWithWakeup(url, opts = {}) {
+  // Zeigt nach 4s einen Hinweis dass der Server aufwacht (Render Free Tier)
+  const WARN_AFTER = 4000;
+  let warnTimer = null;
+  const loadEl = document.querySelector('.loading-text');
+  const controller = new AbortController();
+  const hardTimeout = setTimeout(() => controller.abort(), 70000);
   try {
-    const customFetches = customAssets.map(ca =>
-      fetch(`${API}/api/quote/${ca.ticker}`).then(r => r.ok ? r.json() : null).catch(() => null)
-    );
-    const [standardRes, ...customQuotes] = await Promise.all([fetch(`${API}/api/assets`), ...customFetches]);
-    const standard = await standardRes.json();
-    const customData = customQuotes.map((q, i) => q ? {
-      symbol: customAssets[i].symbol, name: customAssets[i].name,
-      type: customAssets[i].type, unit: '$',
-      price: q.price, change: q.change, changeAmt: q.changeAmt,
-    } : null).filter(Boolean);
-    allAssets = [...standard, ...customData];
-    checkAlerts(allAssets);
-    renderSidebar();
-    renderHeaderTicker();
-  } catch(e) {
-    showSidebarError();
+    warnTimer = setTimeout(() => {
+      if (loadEl) loadEl.innerHTML =
+        'SERVER STARTET... <span style="color:var(--accent-gold)">(Render Free Tier – bis zu 60s)</span>';
+    }, WARN_AFTER);
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    clearTimeout(warnTimer);
+    if (loadEl) loadEl.textContent = 'VERBINDE MIT YAHOO FINANCE...';
+    return res;
+  } finally {
+    clearTimeout(warnTimer);
+    clearTimeout(hardTimeout);
+  }
+}
+
+async function loadAllAssets() {
+  let attempts = 0;
+  while (attempts < 3) {
+    try {
+      const customFetches = customAssets.map(ca =>
+        fetch(`${API}/api/quote/${ca.ticker}`).then(r => r.ok ? r.json() : null).catch(() => null)
+      );
+      const [standardRes, ...customQuotes] = await Promise.all([
+        fetchWithWakeup(`${API}/api/assets`), ...customFetches
+      ]);
+      if (!standardRes.ok) throw new Error(await standardRes.text());
+      const standard = await standardRes.json();
+      const customData = customQuotes.map((q, i) => q ? {
+        symbol: customAssets[i].symbol, name: customAssets[i].name,
+        type: customAssets[i].type, unit: '$',
+        price: q.price, change: q.change, changeAmt: q.changeAmt,
+      } : null).filter(Boolean);
+      allAssets = [...standard, ...customData];
+      checkAlerts(allAssets);
+      renderSidebar();
+      renderHeaderTicker();
+      return;
+    } catch(e) {
+      attempts++;
+      if (attempts >= 3) { showSidebarError(); return; }
+      const loadEl = document.querySelector('.loading-text');
+      if (loadEl) loadEl.textContent = `ERNEUTER VERSUCH ${attempts}/3...`;
+      await new Promise(r => setTimeout(r, 3000));
+    }
   }
 }
 
@@ -4740,6 +4773,8 @@ window.addEventListener('beforeunload', saveCurrentProfileData);
   updateBtSymbolDisplay();
   // Auto-refresh alle 60 Sekunden
   autoRefresh = setInterval(loadAllAssets, 60000);
+  // Keep-Alive: Render Free Tier nicht einschlafen lassen (alle 10 Min)
+  setInterval(() => fetch(`${API}/api/health`).catch(()=>{}), 600000);
 })();
 </script>
 </body>

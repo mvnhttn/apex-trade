@@ -698,15 +698,14 @@ def health():
 
 @app.get("/api/assets")
 def get_all_assets():
-    result = []
-    for symbol, config in ASSETS.items():
+    def fetch_one(item):
+        symbol, config = item
         price = change = change_amt = None
-        tickers = list(dict.fromkeys([config["ticker"], config["fallback"]]))
-        for ticker_sym in tickers:
+        for ticker_sym in list(dict.fromkeys([config["ticker"], config["fallback"]])):
             try:
-                info      = make_ticker(ticker_sym).fast_info
-                price     = safe_float(info.last_price)
-                prev      = safe_float(info.previous_close)
+                info  = make_ticker(ticker_sym).fast_info
+                price = safe_float(info.last_price)
+                prev  = safe_float(info.previous_close)
                 if price and prev and prev != 0:
                     change     = round((price - prev) / prev * 100, 2)
                     change_amt = round(price - prev, 4)
@@ -715,7 +714,7 @@ def get_all_assets():
                 break
             except Exception:
                 continue
-        result.append({
+        return {
             "symbol":    symbol,
             "name":      config["name"],
             "type":      config["type"],
@@ -723,8 +722,22 @@ def get_all_assets():
             "price":     round(price, 4) if price else None,
             "change":    change or 0.0,
             "changeAmt": change_amt or 0.0,
-        })
-    return result
+        }
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        futures = {ex.submit(fetch_one, item): item for item in ASSETS.items()}
+        result  = []
+        for fut in futures:
+            try:
+                result.append(fut.result(timeout=10))
+            except Exception:
+                symbol, config = futures[fut]
+                result.append({"symbol": symbol, "name": config["name"],
+                                "type": config["type"], "unit": config["unit"],
+                                "price": None, "change": 0.0, "changeAmt": 0.0})
+    # Originalreihenfolge beibehalten
+    order = {s: i for i, s in enumerate(ASSETS)}
+    return sorted(result, key=lambda x: order.get(x["symbol"], 99))
 
 
 @app.get("/api/asset/{symbol}")
