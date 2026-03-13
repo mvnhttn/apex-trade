@@ -36,6 +36,25 @@ try:
 except ImportError:
     YF_SESSION = None
 
+# ── Anthropic Claude AI ─────────────────────────────────────────────────────
+try:
+    import anthropic as _anthropic
+    _ANTHROPIC_CLIENT = _anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    AI_AVAILABLE = bool(os.environ.get("ANTHROPIC_API_KEY"))
+except ImportError:
+    _ANTHROPIC_CLIENT = None
+    AI_AVAILABLE = False
+
+AI_CACHE_TTL = 1800  # 30 Minuten
+
+
+def cache_get_ai(key: str):
+    entry = _cache.get(key)
+    if entry and (time.time() - entry["ts"]) < AI_CACHE_TTL:
+        return entry["data"]
+    return None
+
+
 app = FastAPI(title="APEX TRADE API", version="2.0.0")
 
 app.add_middleware(
@@ -180,6 +199,93 @@ def calculate_signal(rsi, macd_hist, price, ma50, ma200):
     elif score <= -4: return "SELL"
     elif score >= 2:  return "WATCH"
     else:             return "HOLD"
+
+
+def calculate_signal_v2(rsi, macd_hist, price, ma50, ma200,
+                        adx=None, cci=None, willr=None,
+                        volume=None, avg_volume=None,
+                        bb_upper=None, bb_lower=None) -> dict:
+    """Erweiterter Signal-Score mit Konfidenz-Prozentsatz."""
+    score = 0
+    max_score = 0
+
+    # RSI (max ±3)
+    if rsi is not None:
+        max_score += 3
+        if rsi < 30:    score += 3
+        elif rsi < 40:  score += 2
+        elif rsi < 50:  score += 1
+        elif rsi > 75:  score -= 3
+        elif rsi > 65:  score -= 2
+        elif rsi > 55:  score -= 1
+
+    # MACD Histogramm (max ±2)
+    if macd_hist is not None:
+        max_score += 2
+        score += 2 if macd_hist > 0 else -2
+
+    # MA50 (max ±1)
+    if ma50 and price:
+        max_score += 1
+        score += 1 if price > ma50 else -1
+
+    # MA200 (max ±1)
+    if ma200 and price:
+        max_score += 1
+        score += 1 if price > ma200 else -1
+
+    # ADX Trendstärke (max ±2)
+    if adx is not None:
+        max_score += 2
+        if adx > 25:
+            directional = 1 if (price and ma50 and price > ma50) else -1
+            score += 2 * directional
+
+    # CCI Extremzone (max ±1)
+    if cci is not None:
+        max_score += 1
+        if cci < -100:   score += 1
+        elif cci > 100:  score -= 1
+
+    # Williams %R (max ±1)
+    if willr is not None:
+        max_score += 1
+        if willr < -80:    score += 1
+        elif willr > -20:  score -= 1
+
+    # Volumen (max ±1)
+    if volume is not None and avg_volume and avg_volume > 0:
+        max_score += 1
+        if volume / avg_volume > 1.2:
+            directional = 1 if (price and ma50 and price > ma50) else -1
+            score += 1 * directional
+
+    # Bollinger-Band Position (max ±1)
+    if bb_upper and bb_lower and price and (bb_upper - bb_lower) > 0:
+        max_score += 1
+        bb_pct = (price - bb_lower) / (bb_upper - bb_lower)
+        if bb_pct < 0.15:    score += 1
+        elif bb_pct > 0.85:  score -= 1
+
+    if score >= 4:     signal = "BUY"
+    elif score <= -4:  signal = "SELL"
+    elif score >= 2:   signal = "WATCH"
+    else:              signal = "HOLD"
+
+    confidence = round(abs(score) / max_score * 100) if max_score > 0 else 50
+    return {"signal": signal, "confidence": confidence, "score": score, "max_score": max_score}
+
+
+def detect_market_regime(price, ma50, ma200, adx, atr_pct) -> str:
+    """Klassifiziert den Markt-Regime: TRENDING_UP | TRENDING_DOWN | RANGING | VOLATILE"""
+    if atr_pct is not None and atr_pct > 3.0:
+        return "VOLATILE"
+    if adx is not None and adx > 25:
+        if price and ma50 and ma200 and price > ma50 > ma200:
+            return "TRENDING_UP"
+        if price and ma50 and ma200 and price < ma50 < ma200:
+            return "TRENDING_DOWN"
+    return "RANGING"
 
 
 def get_support_resistance(df, current_price):
@@ -844,6 +950,23 @@ def get_asset_detail(symbol: str, period: str = "3mo", interval: str = "1d"):
         ich_tenkan_s = ich_kijun_s = ich_spanA_s = ich_spanB_s = close * float("nan")
 
     signal = calculate_signal(rsi, macd_hist, price, ma50, ma200)
+
+    # Erweiterter Signal-Score mit Konfidenz
+    adx_val   = safe_float(adx_s.iloc[-1])
+    cci_val   = safe_float(cci_s.iloc[-1])
+    willr_val = safe_float(willr_s.iloc[-1])
+    vol_20    = float(volume.iloc[-20:].mean()) if len(volume) >= 20 else None
+    vol_cur   = safe_float(volume.iloc[-1])
+    atr_pct_v = round(atr / price * 100, 2) if atr and price else None
+
+    signal_v2 = calculate_signal_v2(
+        rsi, macd_hist, price, ma50, ma200,
+        adx=adx_val, cci=cci_val, willr=willr_val,
+        volume=vol_cur, avg_volume=vol_20,
+        bb_upper=bb_upper, bb_lower=bb_lower,
+    )
+    market_regime = detect_market_regime(price, ma50, ma200, adx_val, atr_pct_v)
+
     levels = get_support_resistance(df, price)
     zones  = get_entry_zones(levels["support1"], levels["support2"], price)
 
@@ -916,8 +1039,9 @@ def get_asset_detail(symbol: str, period: str = "3mo", interval: str = "1d"):
         "price":      round(price, 4),
         "change":     change,
         "changeAmt":  change_amt,
-        "signal":     signal,
-        "dataSource": used_ticker,
+        "signal":        {"label": signal_v2["signal"], "confidence": signal_v2["confidence"], "score": signal_v2["score"], "max_score": signal_v2["max_score"]},
+        "market_regime": market_regime,
+        "dataSource":    used_ticker,
         "indicators": {
             "rsi":        round(rsi, 1)       if rsi        else None,
             "rsiText":    "Überverkauft"      if rsi and rsi < 35 else
@@ -1421,3 +1545,169 @@ def get_ltr_signal(capital: float = 10000.0):
     if capital <= 0 or capital > 1_000_000_000:
         raise HTTPException(status_code=400, detail="Ungültiges Kapital (0 < capital ≤ 1.000.000.000)")
     return run_leveraged_trend_rider(capital)
+
+
+# ─────────────────────────────────────────
+# KI-Analyse (Claude AI)
+# ─────────────────────────────────────────
+
+def _build_ai_prompt(symbol: str, name: str, asset_type: str, price: float,
+                     indicators: dict, signal_v2: dict, market_regime: str,
+                     levels: dict, momentum: dict) -> str:
+    """Erstellt den strukturierten Analyse-Prompt für Claude."""
+    ind = indicators
+    sig = signal_v2
+    return f"""Du bist ein quantitativer Handelsanalyst im Stil von Renaissance Technologies und Citadel.
+Analysiere folgendes Asset präzise und antworte AUSSCHLIESSLICH als valides JSON ohne Markdown-Wrapper.
+
+=== ASSET ===
+Symbol: {symbol} | Name: {name} | Typ: {asset_type} | Kurs: {price}
+
+=== TECHNISCHE INDIKATOREN ===
+Signal (regelbasiert): {sig.get('signal')} | Konfidenz: {sig.get('confidence')}% | Score: {sig.get('score')}/{sig.get('max_score')}
+Markt-Regime: {market_regime}
+RSI (14): {ind.get('rsi')} | MACD Hist: {ind.get('macdHist')}
+MA50: {ind.get('ma50')} | MA200: {ind.get('ma200')}
+Bollinger %B: {ind.get('bbPercent')} | BB Oben: {ind.get('bbUpper')} | BB Unten: {ind.get('bbLower')}
+ATR: {ind.get('atr')} | StochRSI: {ind.get('stochRsi')} | OBV-Trend: {ind.get('obvTrend')}
+ADX: {ind.get('adx')} (>25=Trend aktiv) | CCI: {ind.get('cci')} | Williams %R: {ind.get('willr')}
+
+=== SUPPORT / RESISTANCE ===
+R2: {levels.get('resistance2')} | R1: {levels.get('resistance1')} | S1: {levels.get('support1')} | S2: {levels.get('support2')}
+
+=== MOMENTUM ===
+1M: {momentum.get('1m','n/a')}% | 3M: {momentum.get('3m','n/a')}% | 6M: {momentum.get('6m','n/a')}%
+
+Gewichte: Trend (MA-Kaskade+ADX) > Momentum (RSI,MACD) > Extremzonen (CCI,Williams) > Volumen.
+Achte auf Divergenzen (z.B. RSI überverkauft aber bearisher Trend).
+
+Antworte NUR als JSON (kein Markdown, kein Text davor/danach):
+{{"recommendation":"KAUFEN"|"VERKAUFEN"|"HALTEN"|"BEOBACHTEN","confidence":<0-100>,"rationale":"<2-3 Sätze DE>","key_risks":["<Risiko1>","<Risiko2>","<Risiko3>"],"entry_strategy":{{"entry":<float|null>,"stop_loss":<float|null>,"target":<float|null>,"crv":<float|null>}},"time_horizon":"kurzfristig (1-5T)"|"mittelfristig (2-8W)"|"langfristig (3-6M)","market_regime":"TRENDING_UP"|"TRENDING_DOWN"|"RANGING"|"VOLATILE"}}"""
+
+
+@app.get("/api/ai-analysis/{symbol}")
+async def get_ai_analysis(symbol: str):
+    """
+    KI-gestützte Handelsanalyse via Claude (Anthropic).
+    30-Minuten-Cache. Gibt 503 zurück wenn ANTHROPIC_API_KEY fehlt.
+    """
+    symbol = symbol.upper()
+    if not AI_AVAILABLE:
+        raise HTTPException(status_code=503, detail="KI-Analyse nicht verfügbar: ANTHROPIC_API_KEY nicht konfiguriert.")
+
+    cache_key = f"ai_{symbol}"
+    cached = cache_get_ai(cache_key)
+    if cached is not None:
+        return cached
+
+    config = ASSETS.get(symbol, {"ticker": symbol, "fallback": symbol, "name": symbol, "type": "stock", "unit": "$"})
+    df, used_ticker = fetch_df(symbol, "3mo")
+    close  = df["Close"]
+    high   = df["High"]
+    low    = df["Low"]
+    volume = df["Volume"]
+    n      = len(close)
+    price  = safe_float(close.iloc[-1])
+    if not price:
+        raise HTTPException(status_code=502, detail="Keine Preisdaten verfügbar.")
+
+    # Alle Indikatoren berechnen
+    rsi_s     = ta.momentum.RSIIndicator(close, window=14).rsi()
+    rsi       = safe_float(rsi_s.iloc[-1], 50.0)
+    macd_obj  = ta.trend.MACD(close)
+    macd_hist = safe_float(macd_obj.macd_diff().iloc[-1])
+    bb        = ta.volatility.BollingerBands(close, window=20, window_dev=2)
+    bb_upper  = safe_float(bb.bollinger_hband().iloc[-1])
+    bb_lower  = safe_float(bb.bollinger_lband().iloc[-1])
+    bb_pct    = round(((price - bb_lower) / (bb_upper - bb_lower)) * 100, 1) \
+                if bb_upper and bb_lower and (bb_upper - bb_lower) != 0 else None
+    stoch     = ta.momentum.StochRSIIndicator(close, window=14, smooth1=3, smooth2=3)
+    stoch_pct = round(safe_float(stoch.stochrsi().iloc[-1], 0) * 100, 1)
+    atr       = safe_float(ta.volatility.AverageTrueRange(high, low, close, window=14).average_true_range().iloc[-1])
+    ma50      = safe_float(close.rolling(min(50, n)).mean().iloc[-1])
+    ma200     = safe_float(close.rolling(min(200, n)).mean().iloc[-1])
+    adx_obj   = ta.trend.ADXIndicator(high, low, close, window=14)
+    adx_val   = safe_float(adx_obj.adx().iloc[-1])
+    cci_val   = safe_float(ta.trend.CCIIndicator(high, low, close, window=20).cci().iloc[-1])
+    willr_val = safe_float(ta.momentum.WilliamsRIndicator(high, low, close, lbp=14).williams_r().iloc[-1])
+    obv_s     = ta.volume.OnBalanceVolumeIndicator(close, volume).on_balance_volume()
+    obv_trend = "Positiv" if safe_float(obv_s.iloc[-1], 0) > safe_float(obv_s.iloc[-20], 0) else "Negativ"
+    vol_20    = float(volume.iloc[-20:].mean()) if len(volume) >= 20 else None
+    vol_cur   = safe_float(volume.iloc[-1])
+    atr_pct   = round(atr / price * 100, 2) if atr and price else None
+
+    signal_v2     = calculate_signal_v2(rsi, macd_hist, price, ma50, ma200,
+                                        adx=adx_val, cci=cci_val, willr=willr_val,
+                                        volume=vol_cur, avg_volume=vol_20,
+                                        bb_upper=bb_upper, bb_lower=bb_lower)
+    market_regime = detect_market_regime(price, ma50, ma200, adx_val, atr_pct)
+    levels        = get_support_resistance(df, price)
+
+    # Momentum (1M / 3M / 6M)
+    momentum: dict = {}
+    try:
+        df_1y, _ = fetch_df(symbol, "1y")
+        c = df_1y["Close"]
+        for days, key in [(21, "1m"), (63, "3m"), (126, "6m")]:
+            if len(c) >= days:
+                momentum[key] = round((float(c.iloc[-1]) - float(c.iloc[-days])) / float(c.iloc[-days]) * 100, 2)
+    except Exception:
+        pass
+
+    ind_prompt = {
+        "rsi": round(rsi, 1) if rsi else None,
+        "macdHist": round(macd_hist, 4) if macd_hist else None,
+        "bbPercent": bb_pct,
+        "bbUpper": round(bb_upper, 4) if bb_upper else None,
+        "bbLower": round(bb_lower, 4) if bb_lower else None,
+        "stochRsi": stoch_pct,
+        "atr": round(atr, 4) if atr else None,
+        "ma50": round(ma50, 4) if ma50 else None,
+        "ma200": round(ma200, 4) if ma200 else None,
+        "adx": round(adx_val, 1) if adx_val else None,
+        "cci": round(cci_val, 1) if cci_val else None,
+        "willr": round(willr_val, 1) if willr_val else None,
+        "obvTrend": obv_trend,
+    }
+    prompt = _build_ai_prompt(symbol, config["name"], config["type"], price,
+                               ind_prompt, signal_v2, market_regime, levels, momentum)
+
+    try:
+        import asyncio, json as _json
+        loop = asyncio.get_event_loop()
+
+        def _call_claude():
+            msg = _ANTHROPIC_CLIENT.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return msg.content[0].text
+
+        raw_text = await loop.run_in_executor(None, _call_claude)
+
+        # Markdown-Wrapper entfernen falls vorhanden
+        raw_text = raw_text.strip()
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("```")[1]
+            if raw_text.startswith("json"):
+                raw_text = raw_text[4:]
+            raw_text = raw_text.strip()
+
+        ai_result = _json.loads(raw_text)
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"KI-Analyse fehlgeschlagen: {str(e)}")
+
+    result = {
+        "symbol":        symbol,
+        "name":          config["name"],
+        "price":         round(price, 4),
+        "ai":            ai_result,
+        "rule_signal":   signal_v2,
+        "market_regime": market_regime,
+        "cached_until":  round(time.time() + AI_CACHE_TTL),
+        "timestamp":     datetime.now().isoformat(),
+    }
+    _cache[cache_key] = {"data": result, "ts": time.time()}
+    return result
