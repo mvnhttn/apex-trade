@@ -337,10 +337,97 @@
   .tab-btn:hover { color:var(--text-primary); }
   .tab-btn.active { color:var(--accent-cyan); border-bottom-color:var(--accent-cyan); }
 
+  /* ── PROFIL / LOGIN SYSTEM ──────────────────────────────────────────── */
+  .profile-overlay {
+    position:fixed; inset:0; z-index:1000;
+    background:rgba(8,11,15,0.97);
+    display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(10px);
+  }
+  .profile-overlay.hidden { display:none !important; }
+  .profile-modal {
+    background:var(--bg-card); border:1px solid var(--border-bright);
+    border-radius:16px; padding:40px; width:380px; max-width:90vw;
+    box-shadow:0 0 60px rgba(0,212,255,0.1);
+  }
+  .profile-modal-logo {
+    font-family:'Space Mono',monospace; font-size:18px; font-weight:700;
+    letter-spacing:5px; color:var(--accent-cyan); text-shadow:var(--glow-cyan);
+    text-align:center; margin-bottom:8px;
+  }
+  .profile-modal-sub {
+    font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px;
+    color:var(--text-muted); text-align:center; margin-bottom:32px;
+  }
+  .profile-list { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
+  .profile-item {
+    display:flex; align-items:center; gap:12px;
+    padding:12px 14px; border-radius:8px;
+    border:1px solid var(--border); background:var(--bg-secondary);
+    cursor:pointer; transition:all 0.15s;
+  }
+  .profile-item:hover { border-color:var(--accent-cyan); background:rgba(0,212,255,0.05); }
+  .profile-avatar {
+    width:36px; height:36px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Mono',monospace; font-size:13px; font-weight:700;
+    flex-shrink:0;
+  }
+  .profile-item-name { font-size:13px; font-weight:700; flex:1; }
+  .profile-item-date { font-family:'Space Mono',monospace; font-size:9px; color:var(--text-muted); }
+  .profile-item-del {
+    background:none; border:none; color:var(--text-muted); cursor:pointer;
+    font-size:14px; padding:4px; border-radius:4px; transition:color 0.15s;
+  }
+  .profile-item-del:hover { color:var(--accent-red); }
+  .profile-divider {
+    display:flex; align-items:center; gap:10px; margin:16px 0;
+    font-family:'Space Mono',monospace; font-size:9px; color:var(--text-muted);
+  }
+  .profile-divider::before, .profile-divider::after {
+    content:''; flex:1; height:1px; background:var(--border);
+  }
+  .profile-input {
+    width:100%; padding:10px 12px; border-radius:6px;
+    border:1px solid var(--border); background:var(--bg-secondary);
+    color:var(--text-primary); font-family:'Space Mono',monospace; font-size:11px;
+    outline:none; transition:border-color 0.15s; box-sizing:border-box;
+    margin-bottom:10px;
+  }
+  .profile-input:focus { border-color:var(--accent-cyan); }
+  .profile-create-btn {
+    width:100%; padding:11px; border-radius:6px;
+    background:rgba(0,212,255,0.1); border:1px solid rgba(0,212,255,0.4);
+    color:var(--accent-cyan); font-family:'Space Mono',monospace;
+    font-size:10px; font-weight:700; letter-spacing:2px;
+    cursor:pointer; transition:all 0.15s;
+  }
+  .profile-create-btn:hover { background:rgba(0,212,255,0.2); }
+  .profile-color-row { display:flex; gap:8px; margin-bottom:12px; justify-content:center; }
+  .profile-color-dot {
+    width:24px; height:24px; border-radius:50%; cursor:pointer;
+    border:2px solid transparent; transition:all 0.15s;
+  }
+  .profile-color-dot.selected { border-color:white; transform:scale(1.2); }
+  /* Profile badge in header */
+  .profile-badge {
+    display:flex; align-items:center; gap:8px;
+    padding:5px 12px; border-radius:6px;
+    border:1px solid var(--border); background:var(--bg-card);
+    cursor:pointer; transition:all 0.15s;
+  }
+  .profile-badge:hover { border-color:var(--accent-cyan); }
+  .profile-badge-avatar {
+    width:22px; height:22px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Mono',monospace; font-size:9px; font-weight:700;
+  }
+  .profile-badge-name { font-family:'Space Mono',monospace; font-size:9px; color:var(--text-secondary); }
+
   /* ── REPORT PANEL ────────────────────────────────────────────────── */
   .report-panel-wrap {
     background:var(--bg-card); border:1px solid var(--border); border-radius:12px;
-    overflow:hidden;
+    overflow:visible;
   }
   .report-tabs {
     display:flex; background:var(--bg-secondary);
@@ -1077,6 +1164,10 @@
     <div class="ticker-item"><span class="ticker-name">LADEN...</span></div>
   </div>
   <div class="header-right">
+    <div id="profileHeaderBadge" class="profile-badge hidden" onclick="showProfileOverlay()">
+      <div id="profileHeaderAvatar" class="profile-badge-avatar"></div>
+      <div id="profileHeaderName" class="profile-badge-name">—</div>
+    </div>
     <button class="refresh-btn" id="refreshBtn" onclick="refreshAll()">↻ REFRESH</button>
     <div class="header-time">
       <div><span class="live-dot"></span><span id="liveTime"></span></div>
@@ -1127,29 +1218,25 @@
   <div class="right-panel" id="rightPanel"></div>
 
   <!-- ── REPORT PANEL ─────────────────────────────────────────────── -->
-  <div class="full-panel hidden" id="reportPanel" style="padding:16px 20px;display:flex;flex-direction:column;gap:14px">
+  <div class="full-panel hidden" id="reportPanel">
     <div class="report-panel-wrap">
       <div class="report-tabs">
-        <button class="rep-tab active" id="repTab1" onclick="setRepTab(1)">
-          ◈ REPORT I — TECHNISCHE ANALYSE
-        </button>
-        <button class="rep-tab" id="repTab2" onclick="setRepTab(2)">
-          ◆ REPORT II — QUANT RESEARCH MEMO
-        </button>
+        <button class="rep-tab active" id="repTab1" onclick="setRepTab(1)">◈ REPORT I — TECHNISCHE ANALYSE</button>
+        <button class="rep-tab" id="repTab2" onclick="setRepTab(2)">◆ REPORT II — QUANT RESEARCH MEMO</button>
+        <div style="flex:1"></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:0 16px">
+          <span id="repAssetName" style="font-family:'Space Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:2px">—</span>
+          <button class="rep-generate-btn" id="repGenerateBtn" onclick="loadReport()" style="padding:6px 16px;font-size:9px">◈ GENERIEREN</button>
+        </div>
       </div>
       <div id="reportContent">
         <div class="report-body" style="text-align:center;padding:60px">
           <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--text-muted);margin-bottom:20px">DUAL-INTELLIGENCE REPORT</div>
-          <div style="font-size:15px;font-weight:700;margin-bottom:8px">Report für <span id="repAssetName" style="color:var(--accent-cyan)">—</span> generieren</div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:8px">Asset in der Sidebar auswählen, dann Report generieren</div>
           <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text-secondary);margin-bottom:24px;line-height:1.6">
             Tiefenanalyse mit technischen Indikatoren (Citadel-Stil) und<br>quantitativer Saisonalität + Momentum-Analyse (Renaissance-Stil)
           </div>
-          <button class="rep-generate-btn" id="repGenerateBtn" onclick="loadReport()">
-            ◈ REPORT GENERIEREN
-          </button>
-          <div class="rep-disclaimer" style="margin-top:16px">
-            Kein Anlageberatung · Nur zur Informationszwecken · Daten via Yahoo Finance
-          </div>
+          <div class="rep-disclaimer">Kein Anlageberatung · Nur zu Informationszwecken · Daten via Yahoo Finance</div>
         </div>
       </div>
     </div>
@@ -1505,6 +1592,15 @@
     <div style="text-align:right;margin-top:14px">
       <button class="modal-close-btn" onclick="closeAddAssetModal()">SCHLIESSEN</button>
     </div>
+  </div>
+</div>
+
+<!-- ── PROFIL OVERLAY ───────────────────────────────────── -->
+<div id="profileOverlay" class="profile-overlay hidden">
+  <div class="profile-modal">
+    <div class="profile-modal-logo">APEX TRADE</div>
+    <div class="profile-modal-sub">PERSONAL TRADING INTELLIGENCE</div>
+    <div id="profileModalContent"></div>
   </div>
 </div>
 
@@ -3414,6 +3510,22 @@ function switchTab(tab) {
   } else if(tab === 'report') {
     document.getElementById('reportPanel').classList.remove('hidden');
     document.getElementById('repAssetName').textContent = selectedSymbol;
+    // Reset report if asset changed
+    if (lastReportSymbol && lastReportSymbol !== selectedSymbol) {
+      currentReportData = null;
+      document.getElementById('reportContent').innerHTML = `
+        <div class="report-body" style="text-align:center;padding:60px">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--text-muted);margin-bottom:20px">DUAL-INTELLIGENCE REPORT</div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:8px">Report für <span style="color:var(--accent-cyan)">${selectedSymbol}</span> generieren</div>
+          <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text-secondary);margin-bottom:24px;line-height:1.6">
+            Asset gewechselt — klicke GENERIEREN für neuen Report
+          </div>
+          <div class="rep-disclaimer">Kein Anlageberatung · Nur zu Informationszwecken</div>
+        </div>`;
+    }
+    lastReportSymbol = selectedSymbol;
+    const btn = document.getElementById('repGenerateBtn');
+    if (btn) { btn.disabled = false; btn.textContent = '◈ GENERIEREN'; }
   }
 }
 
@@ -3996,6 +4108,7 @@ function showBtError(msg) {
 // ══════════════════════════════════════════
 let currentReportData = null;
 let activeRepTab = 1;
+let lastReportSymbol = null;
 
 function setRepTab(n) {
   activeRepTab = n;
@@ -4008,7 +4121,7 @@ function setRepTab(n) {
 
 async function loadReport() {
   const btn = document.getElementById('repGenerateBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '⌛ ANALYSE LÄUFT...'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⌛ LÄUFT...'; }
   document.getElementById('reportContent').innerHTML = `
     <div class="report-body" style="text-align:center;padding:60px">
       <div class="spinner" style="margin:0 auto 16px"></div>
@@ -4019,12 +4132,16 @@ async function loadReport() {
     const res = await fetch(`${API}/api/report/${selectedSymbol}`);
     if (!res.ok) throw new Error(await res.text());
     currentReportData = await res.json();
+    lastReportSymbol = selectedSymbol;
     renderReportContent(currentReportData);
   } catch(e) {
     document.getElementById('reportContent').innerHTML = `
       <div class="report-body">
         <div class="error-box fade-in"><h3>⚠ Report-Fehler</h3><p>${e.message}</p></div>
       </div>`;
+  } finally {
+    const b = document.getElementById('repGenerateBtn');
+    if (b) { b.disabled = false; b.textContent = '◈ GENERIEREN'; }
   }
 }
 
@@ -4255,8 +4372,176 @@ function renderReportII(d) {
     </div>`;
 }
 
+// ══════════════════════════════════════════
+// ── PROFIL SYSTEM ──────────────────────────
+// ══════════════════════════════════════════
+const PROFILE_COLORS = ['#00d4ff','#00ff88','#ffd700','#ff8c42','#b400ff','#ff3b5c','#627eea','#f7931a'];
+let currentProfileId = null;
+
+function getProfiles() {
+  return JSON.parse(localStorage.getItem('apexProfiles') || '[]');
+}
+function saveProfiles(profiles) {
+  localStorage.setItem('apexProfiles', JSON.stringify(profiles));
+}
+
+function initProfileSystem() {
+  const profiles = getProfiles();
+  const savedId  = localStorage.getItem('apexCurrentProfile');
+  if (profiles.length === 0) {
+    showProfileOverlay();
+  } else if (!savedId || !profiles.find(p => p.id === savedId)) {
+    showProfileOverlay();
+  } else {
+    activateProfile(savedId, false);
+  }
+}
+
+function showProfileOverlay() {
+  document.getElementById('profileOverlay').classList.remove('hidden');
+  renderProfileModal();
+}
+
+function hideProfileOverlay() {
+  document.getElementById('profileOverlay').classList.add('hidden');
+}
+
+function renderProfileModal() {
+  const profiles = getProfiles();
+  const el = document.getElementById('profileModalContent');
+  let html = '';
+
+  if (profiles.length > 0) {
+    html += `<div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-muted);margin-bottom:12px">PROFIL WÄHLEN</div>`;
+    html += `<div class="profile-list">`;
+    profiles.forEach(p => {
+      html += `
+        <div class="profile-item" onclick="selectProfile('${p.id}')">
+          <div class="profile-avatar" style="background:${p.color}22;color:${p.color}">${p.name.charAt(0).toUpperCase()}</div>
+          <div>
+            <div class="profile-item-name">${p.name}</div>
+            <div class="profile-item-date">Erstellt ${new Date(p.created).toLocaleDateString('de-DE')}</div>
+          </div>
+          <button class="profile-item-del" onclick="event.stopPropagation();deleteProfile('${p.id}')" title="Profil löschen">✕</button>
+        </div>`;
+    });
+    html += `</div>`;
+    html += `<div class="profile-divider">ODER NEUES PROFIL</div>`;
+  } else {
+    html += `<div style="font-size:13px;font-weight:700;margin-bottom:6px;text-align:center">Willkommen bei APEX TRADE</div>`;
+    html += `<div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text-secondary);text-align:center;margin-bottom:24px">Erstelle dein persönliches Profil</div>`;
+  }
+
+  html += `
+    <div id="newProfileColorRow" class="profile-color-row">
+      ${PROFILE_COLORS.map((c,i) => `<div class="profile-color-dot${i===0?' selected':''}" style="background:${c}" onclick="selectProfileColor('${c}',this)"></div>`).join('')}
+    </div>
+    <input class="profile-input" id="newProfileName" type="text" placeholder="Profilname (z.B. Adrian)" maxlength="20">
+    <button class="profile-create-btn" onclick="createProfile()">+ PROFIL ERSTELLEN</button>`;
+
+  el.innerHTML = html;
+  window._selectedProfileColor = PROFILE_COLORS[0];
+}
+
+function selectProfileColor(color, el) {
+  document.querySelectorAll('.profile-color-dot').forEach(d => d.classList.remove('selected'));
+  el.classList.add('selected');
+  window._selectedProfileColor = color;
+}
+
+function createProfile() {
+  const name = document.getElementById('newProfileName').value.trim();
+  if (!name) { document.getElementById('newProfileName').focus(); return; }
+  const profile = {
+    id: 'p_' + Date.now(),
+    name,
+    color: window._selectedProfileColor || PROFILE_COLORS[0],
+    created: new Date().toISOString(),
+  };
+  const profiles = getProfiles();
+  profiles.push(profile);
+  saveProfiles(profiles);
+  activateProfile(profile.id, true);
+  hideProfileOverlay();
+}
+
+function selectProfile(id) {
+  saveCurrentProfileData();
+  activateProfile(id, true);
+  hideProfileOverlay();
+}
+
+function deleteProfile(id) {
+  if (!confirm('Profil und alle Daten löschen?')) return;
+  const profiles = getProfiles().filter(p => p.id !== id);
+  saveProfiles(profiles);
+  localStorage.removeItem(`apex_data_${id}`);
+  if (currentProfileId === id) {
+    currentProfileId = null;
+    localStorage.removeItem('apexCurrentProfile');
+  }
+  renderProfileModal();
+}
+
+function activateProfile(id, load) {
+  const profiles = getProfiles();
+  const profile  = profiles.find(p => p.id === id);
+  if (!profile) return;
+  if (load) loadProfileData(id);
+  currentProfileId = id;
+  localStorage.setItem('apexCurrentProfile', id);
+  // Update header badge
+  const badge  = document.getElementById('profileHeaderBadge');
+  const avatar = document.getElementById('profileHeaderAvatar');
+  const pname  = document.getElementById('profileHeaderName');
+  if (badge && avatar && pname) {
+    avatar.style.background = profile.color + '22';
+    avatar.style.color = profile.color;
+    avatar.textContent = profile.name.charAt(0).toUpperCase();
+    pname.textContent  = profile.name;
+    badge.classList.remove('hidden');
+  }
+}
+
+function saveCurrentProfileData() {
+  if (!currentProfileId) return;
+  const data = {
+    journal:        localStorage.getItem('apexJournal')       || '[]',
+    portfolio:      localStorage.getItem('apexPortfolio')     || '[]',
+    watchlist:      localStorage.getItem('apexWatchlist')     || '[]',
+    alerts:         localStorage.getItem('apexAlerts')        || '[]',
+    customAssets:   localStorage.getItem('apexCustomAssets')  || '[]',
+    checklist:      localStorage.getItem('apexChecklist')     || '{}',
+  };
+  localStorage.setItem(`apex_data_${currentProfileId}`, JSON.stringify(data));
+}
+
+function loadProfileData(id) {
+  const raw  = localStorage.getItem(`apex_data_${id}`);
+  const data = raw ? JSON.parse(raw) : {};
+  localStorage.setItem('apexJournal',      data.journal      || '[]');
+  localStorage.setItem('apexPortfolio',    data.portfolio    || '[]');
+  localStorage.setItem('apexWatchlist',    data.watchlist    || '[]');
+  localStorage.setItem('apexAlerts',       data.alerts       || '[]');
+  localStorage.setItem('apexCustomAssets', data.customAssets || '[]');
+  localStorage.setItem('apexChecklist',    data.checklist    || '{}');
+  // Re-initialize all modules
+  loadWatchlist();
+  loadAlerts();
+  loadCustomAssets();
+  loadJournal();
+  loadPortfolio();
+  loadChecklist();
+  if (activeTab === 'journal')    renderJournal();
+  if (activeTab === 'portfolio')  renderPortfolio();
+}
+
+// Auto-save on page leave
+window.addEventListener('beforeunload', saveCurrentProfileData);
+
 // ── INIT ───────────────────────────────────
 (async () => {
+  initProfileSystem();
   loadWatchlist();
   loadAlerts();
   loadCustomAssets();
