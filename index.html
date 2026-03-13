@@ -1188,6 +1188,30 @@
     padding:4px 8px; border-radius:4px; transition:all 0.15s;
   }
   .modal-close-btn:hover { color:var(--text-primary); }
+  /* ── ASSET CONFIG TOGGLE ─────────────────────────────────────────── */
+  .asset-toggle-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 10px; border-radius:6px; background:var(--bg-secondary);
+    border:1px solid var(--border);
+  }
+  .asset-toggle-info { display:flex; align-items:center; gap:8px; }
+  .asset-toggle-label { font-size:13px; font-weight:600; }
+  .asset-toggle-sub { font-family:'Space Mono',monospace; font-size:9px; color:var(--text-muted); }
+  .toggle-switch {
+    position:relative; width:34px; height:18px; cursor:pointer;
+  }
+  .toggle-switch input { opacity:0; width:0; height:0; }
+  .toggle-track {
+    position:absolute; inset:0; border-radius:9px;
+    background:var(--border-bright); transition:background 0.2s;
+  }
+  .toggle-track::after {
+    content:''; position:absolute; left:2px; top:2px;
+    width:14px; height:14px; border-radius:50%;
+    background:#fff; transition:transform 0.2s;
+  }
+  .toggle-switch input:checked + .toggle-track { background:var(--accent-cyan); }
+  .toggle-switch input:checked + .toggle-track::after { transform:translateX(16px); }
 </style>
 </head>
 <body>
@@ -1244,8 +1268,9 @@
       <div class="section-label" style="margin-top:6px">Eigene Assets</div>
       <div id="customList"></div>
     </div>
-    <div style="padding:8px 4px;border-top:1px solid var(--border);margin-top:8px">
-      <button class="add-asset-btn" onclick="showAddAssetModal()">+ ASSET HINZUFÜGEN</button>
+    <div style="padding:8px 4px;border-top:1px solid var(--border);margin-top:8px;display:flex;gap:6px">
+      <button class="add-asset-btn" style="flex:1" onclick="showAddAssetModal()">+ HINZUFÜGEN</button>
+      <button class="add-asset-btn" style="padding:7px 10px;color:var(--text-secondary)" onclick="showAssetConfigModal()" title="Assets konfigurieren">⚙</button>
     </div>
   </div>
 
@@ -1612,6 +1637,21 @@
 
 </div>
 
+<!-- ── ASSET CONFIG MODAL ──────────────────────────────────────────── -->
+<div id="assetConfigModal" class="modal-overlay hidden" onclick="if(event.target===this)closeAssetConfigModal()">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">ASSETS KONFIGURIEREN</div>
+    <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);margin-bottom:14px;letter-spacing:1px">
+      Wähle welche Standard-Assets in der Sidebar angezeigt werden
+    </div>
+    <div id="assetConfigList" style="display:flex;flex-direction:column;gap:6px;max-height:360px;overflow-y:auto;margin-bottom:16px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="profile-btn secondary" style="flex:1" onclick="closeAssetConfigModal()">SCHLIESSEN</button>
+      <button class="profile-btn primary" style="flex:1" onclick="applyAssetConfig()">SPEICHERN</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── ADD ASSET MODAL ──────────────────────────────────────────────── -->
 <div id="addAssetModal" class="modal-overlay hidden">
   <div class="modal-box">
@@ -1692,6 +1732,9 @@ let oscChartInstance = null;
 let customAssets = []; // [{symbol, name, type, ticker}]
 let pendingAsset = null; // Ergebnis der Ticker-Suche
 
+// ── Hidden Default Assets (per Profil) ──
+let hiddenDefaultAssets = new Set();
+
 // ── Multi-Timeframe State ───────────────
 let currentInterval = '1d'; // '1h' | '1d' | '1wk'
 let chartType       = 'line'; // 'line' | 'candle'
@@ -1726,6 +1769,9 @@ const ASSET_META = {
 };
 
 // ── Helpers ────────────────────────────────
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 function fmt(n, d=2) {
   if(n == null) return '—';
   return Number(n).toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -1875,10 +1921,10 @@ function renderSidebar() {
     wlSection.style.display = wlAssets.length ? 'block' : 'none';
     wlItems.innerHTML = wlAssets.map(a => assetItemHTML(a)).join('');
   }
-  // Standard-Gruppen
+  // Standard-Gruppen (Hidden-Filter)
   const groups = { commodity:'commodityList', crypto:'cryptoList', stock:'stockList' };
   Object.entries(groups).forEach(([g,id])=>{
-    const assets = allAssets.filter(a => ASSET_META[a.symbol]?.group === g);
+    const assets = allAssets.filter(a => ASSET_META[a.symbol]?.group === g && !hiddenDefaultAssets.has(a.symbol));
     document.getElementById(id).innerHTML = assets.map(a => assetItemHTML(a)).join('');
   });
   // Custom Assets
@@ -1918,6 +1964,69 @@ function assetItemHTML(a, isCustom=false) {
       }
     </div>
   </div>`;
+}
+
+// ── Asset Config Modal ──────────────────────
+const DEFAULT_ASSETS_LIST = [
+  {symbol:'XAU',name:'Gold',group:'Rohstoffe'},
+  {symbol:'XAG',name:'Silver',group:'Rohstoffe'},
+  {symbol:'HG',name:'Copper',group:'Rohstoffe'},
+  {symbol:'BTC',name:'Bitcoin',group:'Krypto'},
+  {symbol:'ETH',name:'Ethereum',group:'Krypto'},
+  {symbol:'FCX',name:'Freeport-McMoRan',group:'Aktien'},
+  {symbol:'AG',name:'First Majestic Silver',group:'Aktien'},
+  {symbol:'NEM',name:'Newmont Corp.',group:'Aktien'},
+  {symbol:'NVDA',name:'Nvidia',group:'Aktien'},
+  {symbol:'QBTS',name:'D-Wave Quantum',group:'Aktien'},
+  {symbol:'SMCI',name:'Super Micro Computer',group:'Aktien'},
+  {symbol:'MSTR',name:'MicroStrategy',group:'Aktien'},
+];
+
+function showAssetConfigModal() {
+  const list = document.getElementById('assetConfigList');
+  list.innerHTML = DEFAULT_ASSETS_LIST.map(a => {
+    const checked = !hiddenDefaultAssets.has(a.symbol) ? 'checked' : '';
+    return `<div class="asset-toggle-row">
+      <div class="asset-toggle-info">
+        <div class="asset-icon ${ASSET_META[a.symbol]?.iconClass||'stock'}" style="width:28px;height:28px;font-size:9px">${ASSET_META[a.symbol]?.icon||a.symbol.slice(0,3)}</div>
+        <div>
+          <div class="asset-toggle-label">${escapeHtml(a.name)}</div>
+          <div class="asset-toggle-sub">${escapeHtml(a.symbol)} · ${escapeHtml(a.group)}</div>
+        </div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="act_${a.symbol}" ${checked}>
+        <span class="toggle-track"></span>
+      </label>
+    </div>`;
+  }).join('');
+  document.getElementById('assetConfigModal').classList.remove('hidden');
+}
+
+function closeAssetConfigModal() {
+  document.getElementById('assetConfigModal').classList.add('hidden');
+}
+
+function applyAssetConfig() {
+  hiddenDefaultAssets = new Set();
+  DEFAULT_ASSETS_LIST.forEach(a => {
+    const cb = document.getElementById(`act_${a.symbol}`);
+    if (cb && !cb.checked) hiddenDefaultAssets.add(a.symbol);
+  });
+  saveHiddenAssets();
+  closeAssetConfigModal();
+  renderSidebar();
+}
+
+function saveHiddenAssets() {
+  localStorage.setItem('apexHiddenAssets', JSON.stringify([...hiddenDefaultAssets]));
+}
+
+function loadHiddenAssets() {
+  try {
+    const s = localStorage.getItem('apexHiddenAssets');
+    hiddenDefaultAssets = s ? new Set(JSON.parse(s)) : new Set();
+  } catch(e) { hiddenDefaultAssets = new Set(); }
 }
 
 function showSidebarError() {
@@ -3274,9 +3383,9 @@ function renderJournal() {
     const pc = t.pnl != null ? (t.pnl>=0?'var(--accent-green)':'var(--accent-red)') : 'var(--text-muted)';
     return `<tr>
       <td style="color:var(--text-muted)">${i+1}</td>
-      <td>${t.date}</td>
-      <td style="font-weight:700;color:var(--accent-cyan)">${t.symbol}</td>
-      <td><span class="dir-badge ${t.direction}">${t.direction}</span></td>
+      <td>${escapeHtml(t.date)}</td>
+      <td style="font-weight:700;color:var(--accent-cyan)">${escapeHtml(t.symbol)}</td>
+      <td><span class="dir-badge ${escapeHtml(t.direction)}">${escapeHtml(t.direction)}</span></td>
       <td>$${fmt(t.entryPrice,4)}</td>
       <td>${t.exitPrice!=null?'$'+fmt(t.exitPrice,4):'<span style="color:var(--text-muted)">OFFEN</span>'}</td>
       <td>${fmt(t.size,4)}</td>
@@ -4515,10 +4624,10 @@ function renderLoginScreen() {
     html += `<div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-muted);margin-bottom:14px;text-align:center">PROFIL AUSWÄHLEN</div>
     <div class="profile-list">`;
     profiles.forEach(p => {
-      html += `<div class="profile-item" onclick="showLoginForm('${p.id}')">
-        <div class="profile-avatar" style="background:${p.color}22;color:${p.color}">${p.name.charAt(0).toUpperCase()}</div>
+      html += `<div class="profile-item" onclick="showLoginForm('${escapeHtml(p.id)}')">
+        <div class="profile-avatar" style="background:${escapeHtml(p.color)}22;color:${escapeHtml(p.color)}">${escapeHtml(p.name.charAt(0).toUpperCase())}</div>
         <div class="profile-item-info">
-          <div class="profile-item-name">${p.name}</div>
+          <div class="profile-item-name">${escapeHtml(p.name)}</div>
           <div class="profile-item-date">Erstellt ${new Date(p.created).toLocaleDateString('de-DE')}</div>
         </div>
         <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted)">→</span>
@@ -4539,8 +4648,8 @@ function showLoginForm(id) {
   el.innerHTML = `
     <button class="profile-back" onclick="renderLoginScreen()">← Zurück</button>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
-      <div class="profile-avatar" style="width:48px;height:48px;font-size:18px;background:${p.color}22;color:${p.color}">${p.name.charAt(0).toUpperCase()}</div>
-      <div><div style="font-size:16px;font-weight:800">${p.name}</div>
+      <div class="profile-avatar" style="width:48px;height:48px;font-size:18px;background:${escapeHtml(p.color)}22;color:${escapeHtml(p.color)}">${escapeHtml(p.name.charAt(0).toUpperCase())}</div>
+      <div><div style="font-size:16px;font-weight:800">${escapeHtml(p.name)}</div>
       <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);margin-top:3px">PASSWORT EINGEBEN</div></div>
     </div>
     <div id="loginError" class="profile-error">Falsches Passwort. Bitte erneut versuchen.</div>
@@ -4725,6 +4834,7 @@ function doChangePw() {
 // ── DATEN SPEICHERN / LADEN ────────────────
 function saveCurrentProfileData() {
   if (!currentProfileId) return;
+  saveHiddenAssets();
   const data = {
     journal:      localStorage.getItem('apexJournal')      || '[]',
     portfolio:    localStorage.getItem('apexPortfolio')    || '[]',
@@ -4732,6 +4842,7 @@ function saveCurrentProfileData() {
     alerts:       localStorage.getItem('apexAlerts')       || '[]',
     customAssets: localStorage.getItem('apexCustomAssets') || '[]',
     checklist:    localStorage.getItem('apexChecklist')    || '{}',
+    hiddenAssets: localStorage.getItem('apexHiddenAssets') || '[]',
   };
   localStorage.setItem(`apex_data_${currentProfileId}`, JSON.stringify(data));
 }
@@ -4745,8 +4856,9 @@ function loadProfileData(id) {
   localStorage.setItem('apexAlerts',       data.alerts       || '[]');
   localStorage.setItem('apexCustomAssets', data.customAssets || '[]');
   localStorage.setItem('apexChecklist',    data.checklist    || '{}');
+  localStorage.setItem('apexHiddenAssets', data.hiddenAssets || '[]');
   try {
-    loadWatchlist(); loadAlerts(); loadCustomAssets();
+    loadWatchlist(); loadAlerts(); loadCustomAssets(); loadHiddenAssets();
     loadJournal(); loadPortfolio(); loadChecklist();
     if (activeTab === 'journal')   renderJournal();
     if (activeTab === 'portfolio') renderPortfolio();
@@ -4761,6 +4873,7 @@ window.addEventListener('beforeunload', saveCurrentProfileData);
   loadWatchlist();
   loadAlerts();
   loadCustomAssets();
+  loadHiddenAssets();
   loadJournal();
   loadPortfolio();
   loadChecklist();
