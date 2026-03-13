@@ -1742,6 +1742,11 @@ let chartType       = 'line'; // 'line' | 'candle'
 // ── Tech Cache (letzte bekannte Indikatoren je Symbol) ──
 let techCache = {}; // { symbol: { rsi, signal, price, ma50, ma200 } }
 
+// ── KI-Analyse State ────────────────────
+let aiAnalysisData    = null;
+let aiAnalysisSymbol  = null;
+let aiAnalysisLoading = false;
+
 // ── Screener State ──────────────────────
 let screenerData   = [];
 let screenerFilter = 'ALLE';
@@ -1790,7 +1795,9 @@ function fmtLarge(n) {
   if(n >= 1e6)  return '$'+fmt(n/1e6,2)+'M';
   return '$'+fmt(n,0);
 }
-function signalClass(s) { return s ? s.toLowerCase() : 'hold'; }
+function signalLabel(s) { return s?.label || s || 'HOLD'; }
+function signalConf(s)  { return s?.confidence ?? null; }
+function signalClass(s) { const l = signalLabel(s); return l ? l.toLowerCase() : 'hold'; }
 function rsiColor(r) {
   if(!r) return 'var(--accent-gold)';
   if(r<35) return 'var(--accent-green)';
@@ -1876,6 +1883,8 @@ async function loadAssetDetail(symbol, period='3mo', interval=null) {
     const res  = await fetch(`${API}/api/asset/${symbol}?period=${period}&interval=${iv}`);
     if(!res.ok) throw new Error(await res.text());
     currentDetail = await res.json();
+    // KI-Analyse zurücksetzen wenn anderes Symbol
+    if(aiAnalysisSymbol && aiAnalysisSymbol !== symbol) { aiAnalysisData = null; aiAnalysisSymbol = null; }
     // techCache befüllen für technische Alerts
     if(currentDetail?.indicators) {
       const ind = currentDetail.indicators;
@@ -2132,7 +2141,8 @@ function renderMain() {
         <h1>${d.name} <span style="color:var(--text-muted);font-size:16px;font-weight:400">(${d.symbol})</span></h1>
         <p>${d.fundamentals?.sector || d.type.toUpperCase()} · ${d.fundamentals?.industry || ''}</p>
         <div class="meta-row">
-          <span class="signal-badge ${signalClass(d.signal)}">${d.signal}</span>
+          <span class="signal-badge ${signalClass(d.signal)}">${signalLabel(d.signal)}</span>
+          ${(() => { const rm = {TRENDING_UP:{l:'TREND ↑',c:'var(--accent-green)'},TRENDING_DOWN:{l:'TREND ↓',c:'var(--accent-red)'},RANGING:{l:'SEITWÄRTS',c:'var(--accent-gold)'},VOLATILE:{l:'VOLATIL',c:'rgba(255,100,200,0.9)'}}; const r = rm[d.market_regime]; return r ? `<span style="font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.06);color:${r.c};letter-spacing:1px">${r.l}</span>` : ''; })()}
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted)">RSI: ${fmt(ind.rsi,1)}</span>
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted)">MACD: ${ind.macdLabel}</span>
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted)">MA50: ${fmtPrice(ind.ma50,d.symbol)}</span>
@@ -2150,10 +2160,11 @@ function renderMain() {
 
     <!-- SIGNAL CARDS -->
     <div class="signal-panel fade-in">
-      <div class="signal-card ${d.signal==='BUY'?'buy-card':d.signal==='SELL'?'sell-card':''}">
+      <div class="signal-card ${signalLabel(d.signal)==='BUY'?'buy-card':signalLabel(d.signal)==='SELL'?'sell-card':''}">
         <div class="signal-card-title">SIGNAL</div>
-        <div class="signal-card-value" style="color:${d.signal==='BUY'?'var(--accent-green)':d.signal==='SELL'?'var(--accent-red)':d.signal==='WATCH'?'var(--accent-cyan)':'var(--accent-gold)'}">${d.signal}</div>
-        <div class="signal-card-sub">RSI+MACD+MA</div>
+        <div class="signal-card-value" style="color:${signalLabel(d.signal)==='BUY'?'var(--accent-green)':signalLabel(d.signal)==='SELL'?'var(--accent-red)':signalLabel(d.signal)==='WATCH'?'var(--accent-cyan)':'var(--accent-gold)'}">${signalLabel(d.signal)}</div>
+        <div class="signal-card-sub">RSI+MACD+MA+ADX+CCI</div>
+        ${signalConf(d.signal) !== null ? `<div style="margin-top:5px"><div style="width:100%;height:3px;background:rgba(255,255,255,0.1);border-radius:2px"><div style="width:${signalConf(d.signal)}%;height:3px;border-radius:2px;background:${signalLabel(d.signal)==='BUY'?'var(--accent-green)':signalLabel(d.signal)==='SELL'?'var(--accent-red)':signalLabel(d.signal)==='WATCH'?'var(--accent-cyan)':'var(--accent-gold)'}"></div></div><div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted);margin-top:2px">Konfidenz: ${signalConf(d.signal)}%</div></div>` : ''}
       </div>
       <div class="signal-card">
         <div class="signal-card-title">RSI (14)</div>
@@ -2442,8 +2453,8 @@ function renderChart() {
       backgroundColor: bodyColors,
       borderColor: bodyColors,
       borderWidth: 0,
-      barPercentage: 0.65,
-      categoryPercentage: 0.85,
+      barPercentage: 0.9,
+      categoryPercentage: 0.9,
       order: 10,
     }];
     if(activeOverlays.has('ma50')  && ma50)   datasets.push({type:'line',label:'MA50', data:ma50, borderColor:'rgba(255,200,0,0.9)',  borderWidth:1.5,pointRadius:0,fill:false,spanGaps:true,tension:0.3,order:8});
@@ -2470,13 +2481,27 @@ function renderChart() {
 
     const zoomOpts = { zoom:{ wheel:{enabled:true}, pinch:{enabled:true}, mode:'x' }, pan:{enabled:true,mode:'x'} };
 
+    // Y-Achse auf Basis der tatsächlichen Hochs/Tiefs berechnen (inkl. Dochte)
+    const validHighs = highs.filter(v => v != null);
+    const validLows  = lows.filter(v => v != null);
+    const yMax = validHighs.length ? Math.max(...validHighs) : undefined;
+    const yMin = validLows.length  ? Math.min(...validLows)  : undefined;
+    const yPad = (yMax != null && yMin != null) ? (yMax - yMin) * 0.005 : 0;
+    const candleScaleDefaults = {
+      ...scaleDefaults,
+      y: { ...scaleDefaults.y,
+        ...(yMin != null ? { suggestedMin: yMin - yPad } : {}),
+        ...(yMax != null ? { suggestedMax: yMax + yPad } : {}),
+      }
+    };
+
     chartInstance = new Chart(canvas, {
       type: 'bar',
       data: { labels, datasets },
       plugins: [wickPlugin, crosshairPlugin, fibPlugin],
       options: { responsive:true, animation:{duration:200},
         plugins:{ legend:{display:false}, zoom: zoomOpts, tooltip:{ enabled:false } },
-        scales: scaleDefaults
+        scales: candleScaleDefaults
       }
     });
   } else {
@@ -2673,14 +2698,17 @@ function renderRightPanel() {
   const pct = Math.min(95,Math.max(5,((d.price-analystLow)/(analystHigh-analystLow))*100));
 
   const reasons = getSignalReasons(d);
-  const isWatchOrBuy = d.signal==='BUY'||d.signal==='WATCH';
+  const _sig = signalLabel(d.signal);
+  const _conf = signalConf(d.signal);
+  const isWatchOrBuy = _sig==='BUY'||_sig==='WATCH';
 
   document.getElementById('rightPanel').innerHTML = `
     <!-- SIGNAL SUMMARY -->
     <div class="panel-card fade-in">
       <div class="panel-card-title">TRADING SIGNAL</div>
-      <div class="signal-big ${d.signal}">${d.signal}</div>
-      <div class="signal-sub">Berechnet: RSI + MACD + MA50/200</div>
+      <div class="signal-big ${_sig}">${_sig}</div>
+      <div class="signal-sub">RSI + MACD + MA50/200 + ADX + CCI + Williams</div>
+      ${_conf !== null ? `<div style="margin:8px 0 4px"><div style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px"><div style="width:${_conf}%;height:4px;border-radius:2px;background:${_sig==='BUY'?'var(--accent-green)':_sig==='SELL'?'var(--accent-red)':_sig==='WATCH'?'var(--accent-cyan)':'var(--accent-gold)'}"></div></div><div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted);margin-top:3px;text-align:center">Konfidenz: ${_conf}%</div></div>` : ''}
       <div>${reasons.map(r=>`<div class="signal-reason">${r}</div>`).join('')}</div>
     </div>
 
@@ -2688,7 +2716,7 @@ function renderRightPanel() {
     <div class="panel-card fade-in">
       <div class="panel-card-title">EINSTIEGSZONEN</div>
       <div class="entry-zone ${isWatchOrBuy?'buy':'wait'}">
-        <div class="entry-zone-label">${d.signal==='BUY'?'✓ IDEALER EINSTIEG':'⏳ WARTE AUF PULLBACK'}</div>
+        <div class="entry-zone-label">${_sig==='BUY'?'✓ IDEALER EINSTIEG':'⏳ WARTE AUF PULLBACK'}</div>
         <div class="entry-zone-price">${lvl.entry1}</div>
         <div class="entry-zone-desc">Zone 1 – nahe Support 1</div>
       </div>
@@ -2816,7 +2844,20 @@ function renderRightPanel() {
         <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);padding:8px 0">News werden geladen...</div>
       </div>
     </div>
+
+    <!-- KI-ANALYSE -->
+    <div class="panel-card fade-in" id="aiAnalysisCard">
+      <div class="panel-card-title">KI-ANALYSE <span style="font-size:8px;color:var(--accent-cyan);margin-left:4px;letter-spacing:0">claude</span></div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);margin-bottom:10px;line-height:1.5">
+        Ganzheitliche Analyse aller Indikatoren durch Claude AI — angelehnt an Citadel & Renaissance Quant-Strategien.
+      </div>
+      <button onclick="loadAiAnalysis()" style="width:100%;padding:8px;background:linear-gradient(135deg,rgba(0,212,255,0.12),rgba(0,212,255,0.06));border:1px solid rgba(0,212,255,0.3);color:var(--accent-cyan);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;border-radius:6px;cursor:pointer">
+        ◈ KI-ANALYSE STARTEN
+      </button>
+    </div>
   `;
+  // KI-Analyse-Card neu befüllen wenn bereits Daten vorhanden
+  if(aiAnalysisSymbol === d.symbol && aiAnalysisData) renderAiAnalysisCard(aiAnalysisData);
 }
 
 function getSignalReasons(d) {
@@ -2832,6 +2873,89 @@ function getSignalReasons(d) {
   if(ind.ma200 && d.price > ind.ma200) reasons.push(`Kurs über MA200 – Bullenmarkt`);
   reasons.push(`OBV: ${ind.obvTrend}`);
   return reasons;
+}
+
+// ── KI-Analyse ─────────────────────────────
+async function loadAiAnalysis() {
+  if(aiAnalysisLoading) return;
+  const sym = selectedSymbol;
+  if(!sym) return;
+  aiAnalysisLoading = true;
+  const card = document.getElementById('aiAnalysisCard');
+  if(!card) { aiAnalysisLoading = false; return; }
+  card.innerHTML = `
+    <div class="panel-card-title">KI-ANALYSE <span style="font-size:8px;color:var(--accent-cyan);margin-left:4px;letter-spacing:0">claude</span></div>
+    <div style="text-align:center;padding:16px 0">
+      <div class="spinner" style="margin:0 auto 8px"></div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted)">Claude analysiert ${sym}...</div>
+    </div>`;
+  try {
+    const res = await fetch(`${API}/api/ai-analysis/${sym}`);
+    if(res.status === 503) {
+      card.innerHTML = `
+        <div class="panel-card-title">KI-ANALYSE</div>
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);padding:8px 0;text-align:center;line-height:1.6">
+          Nicht verfügbar.<br>ANTHROPIC_API_KEY nicht konfiguriert.
+        </div>`;
+      return;
+    }
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    aiAnalysisData   = await res.json();
+    aiAnalysisSymbol = sym;
+    renderAiAnalysisCard(aiAnalysisData);
+  } catch(e) {
+    if(card) card.innerHTML = `
+      <div class="panel-card-title">KI-ANALYSE</div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--accent-red);padding:8px 0">Fehler: ${e.message}</div>
+      <button onclick="loadAiAnalysis()" style="margin-top:8px;width:100%;padding:6px;background:none;border:1px solid rgba(0,212,255,0.2);color:var(--accent-cyan);font-family:'Space Mono',monospace;font-size:8px;border-radius:4px;cursor:pointer">↺ ERNEUT VERSUCHEN</button>`;
+  } finally {
+    aiAnalysisLoading = false;
+  }
+}
+
+function renderAiAnalysisCard(data) {
+  const card = document.getElementById('aiAnalysisCard');
+  if(!card || !data?.ai) return;
+  const ai = data.ai;
+  const recColor = {KAUFEN:'var(--accent-green)',VERKAUFEN:'var(--accent-red)',BEOBACHTEN:'var(--accent-cyan)',HALTEN:'var(--accent-gold)'}[ai.recommendation] || 'var(--text-muted)';
+  const regimeMap = {TRENDING_UP:'TREND ↑',TRENDING_DOWN:'TREND ↓',RANGING:'SEITWÄRTS',VOLATILE:'VOLATIL'};
+  const regimeLabel = regimeMap[ai.market_regime] || ai.market_regime || '';
+  const horizonColor = {'kurzfristig (1-5T)':'var(--accent-cyan)','mittelfristig (2-8W)':'var(--accent-gold)','langfristig (3-6M)':'var(--accent-green)'}[ai.time_horizon] || 'var(--text-muted)';
+  const risksHtml = (ai.key_risks||[]).map(r =>
+    `<div style="font-size:9px;color:var(--text-secondary);padding:2px 0 2px 8px;border-left:2px solid rgba(255,59,92,0.4)">${r}</div>`
+  ).join('');
+  const e = ai.entry_strategy || {};
+  const setupHtml = e.entry ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;font-family:'Space Mono',monospace;font-size:9px">
+      <div><span style="color:var(--text-muted)">Einstieg</span><br><span style="color:var(--accent-cyan)">${fmtPrice(e.entry, data.symbol)}</span></div>
+      <div><span style="color:var(--text-muted)">Stop-Loss</span><br><span style="color:var(--accent-red)">${fmtPrice(e.stop_loss, data.symbol)}</span></div>
+      <div><span style="color:var(--text-muted)">Ziel</span><br><span style="color:var(--accent-green)">${fmtPrice(e.target, data.symbol)}</span></div>
+      <div><span style="color:var(--text-muted)">CRV</span><br><span style="color:var(--accent-gold)">${e.crv ? fmt(e.crv,2)+' : 1' : '—'}</span></div>
+    </div>` : '';
+  const cachedMin = data.cached_until ? Math.max(0, Math.round((data.cached_until - Date.now()/1000) / 60)) : null;
+  card.innerHTML = `
+    <div class="panel-card-title">KI-ANALYSE <span style="font-size:8px;color:var(--accent-cyan);margin-left:4px;letter-spacing:0">claude</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div style="font-size:22px;font-weight:800;color:${recColor};font-family:'Space Mono',monospace;letter-spacing:2px">${ai.recommendation||'—'}</div>
+      <div style="text-align:right">
+        <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted)">Konfidenz</div>
+        <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${recColor}">${ai.confidence||0}%</div>
+      </div>
+    </div>
+    <div style="width:100%;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;margin-bottom:8px">
+      <div style="width:${ai.confidence||0}%;height:4px;border-radius:2px;background:${recColor};transition:width 0.5s"></div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+      ${regimeLabel ? `<span style="font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.05);color:var(--text-muted)">${regimeLabel}</span>` : ''}
+      ${ai.time_horizon ? `<span style="font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.05);color:${horizonColor}">${ai.time_horizon}</span>` : ''}
+    </div>
+    ${ai.rationale ? `<div style="font-size:10px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px;padding:8px;background:rgba(0,212,255,0.04);border-radius:4px;border-left:2px solid rgba(0,212,255,0.2)">${ai.rationale}</div>` : ''}
+    ${risksHtml ? `<div style="margin-bottom:8px"><div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted);letter-spacing:1px;margin-bottom:4px">RISIKEN</div><div style="display:flex;flex-direction:column;gap:3px">${risksHtml}</div></div>` : ''}
+    ${setupHtml ? `<div><div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted);letter-spacing:1px">KI TRADE-SETUP</div>${setupHtml}</div>` : ''}
+    <div style="margin-top:10px;display:flex;justify-content:flex-end;align-items:center;gap:8px">
+      ${cachedMin !== null ? `<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted)">Cache ~${cachedMin}min</span>` : ''}
+      <button onclick="aiAnalysisData=null;aiAnalysisSymbol=null;loadAiAnalysis()" style="background:none;border:1px solid rgba(0,212,255,0.2);color:var(--accent-cyan);font-family:'Space Mono',monospace;font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer">↺ NEU</button>
+    </div>`;
 }
 
 // ── Refresh ────────────────────────────────
