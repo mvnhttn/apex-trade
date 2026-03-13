@@ -1798,6 +1798,16 @@ function fmtLarge(n) {
 function signalLabel(s) { return s?.label || s || 'HOLD'; }
 function signalConf(s)  { return s?.confidence ?? null; }
 function signalClass(s) { const l = signalLabel(s); return l ? l.toLowerCase() : 'hold'; }
+const MARKET_REGIME_DISPLAY = {
+  TRENDING_UP:   { label: 'TREND ↑',   color: 'var(--accent-green)' },
+  TRENDING_DOWN: { label: 'TREND ↓',   color: 'var(--accent-red)' },
+  RANGING:       { label: 'SEITWÄRTS', color: 'var(--accent-gold)' },
+  VOLATILE:      { label: 'VOLATIL',   color: 'rgba(255,100,200,0.9)' },
+};
+function regimeBadgeHtml(regime) {
+  const r = MARKET_REGIME_DISPLAY[regime];
+  return r ? `<span style="font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.06);color:${r.color};letter-spacing:1px">${r.label}</span>` : '';
+}
 function rsiColor(r) {
   if(!r) return 'var(--accent-gold)';
   if(r<35) return 'var(--accent-green)';
@@ -2130,9 +2140,12 @@ function showMainError(msg) {
 function renderMain() {
   const d = currentDetail;
   if(!d) return;
-  const ind = d.indicators;
-  const lvl = d.levels;
-  const up  = d.change >= 0;
+  const ind  = d.indicators;
+  const lvl  = d.levels;
+  const up   = d.change >= 0;
+  const _sig  = signalLabel(d.signal);
+  const _conf = signalConf(d.signal);
+  const _sigColor = _sig==='BUY'?'var(--accent-green)':_sig==='SELL'?'var(--accent-red)':_sig==='WATCH'?'var(--accent-cyan)':'var(--accent-gold)';
 
   document.getElementById('mainContent').innerHTML = `
     <!-- HEADER -->
@@ -2141,8 +2154,8 @@ function renderMain() {
         <h1>${d.name} <span style="color:var(--text-muted);font-size:16px;font-weight:400">(${d.symbol})</span></h1>
         <p>${d.fundamentals?.sector || d.type.toUpperCase()} · ${d.fundamentals?.industry || ''}</p>
         <div class="meta-row">
-          <span class="signal-badge ${signalClass(d.signal)}">${signalLabel(d.signal)}</span>
-          ${(() => { const rm = {TRENDING_UP:{l:'TREND ↑',c:'var(--accent-green)'},TRENDING_DOWN:{l:'TREND ↓',c:'var(--accent-red)'},RANGING:{l:'SEITWÄRTS',c:'var(--accent-gold)'},VOLATILE:{l:'VOLATIL',c:'rgba(255,100,200,0.9)'}}; const r = rm[d.market_regime]; return r ? `<span style="font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.06);color:${r.c};letter-spacing:1px">${r.l}</span>` : ''; })()}
+          <span class="signal-badge ${signalClass(d.signal)}">${_sig}</span>
+          ${regimeBadgeHtml(d.market_regime)}
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted)">RSI: ${fmt(ind.rsi,1)}</span>
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted)">MACD: ${ind.macdLabel}</span>
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted)">MA50: ${fmtPrice(ind.ma50,d.symbol)}</span>
@@ -2160,11 +2173,11 @@ function renderMain() {
 
     <!-- SIGNAL CARDS -->
     <div class="signal-panel fade-in">
-      <div class="signal-card ${signalLabel(d.signal)==='BUY'?'buy-card':signalLabel(d.signal)==='SELL'?'sell-card':''}">
+      <div class="signal-card ${_sig==='BUY'?'buy-card':_sig==='SELL'?'sell-card':''}">
         <div class="signal-card-title">SIGNAL</div>
-        <div class="signal-card-value" style="color:${signalLabel(d.signal)==='BUY'?'var(--accent-green)':signalLabel(d.signal)==='SELL'?'var(--accent-red)':signalLabel(d.signal)==='WATCH'?'var(--accent-cyan)':'var(--accent-gold)'}">${signalLabel(d.signal)}</div>
+        <div class="signal-card-value" style="color:${_sigColor}">${_sig}</div>
         <div class="signal-card-sub">RSI+MACD+MA+ADX+CCI</div>
-        ${signalConf(d.signal) !== null ? `<div style="margin-top:5px"><div style="width:100%;height:3px;background:rgba(255,255,255,0.1);border-radius:2px"><div style="width:${signalConf(d.signal)}%;height:3px;border-radius:2px;background:${signalLabel(d.signal)==='BUY'?'var(--accent-green)':signalLabel(d.signal)==='SELL'?'var(--accent-red)':signalLabel(d.signal)==='WATCH'?'var(--accent-cyan)':'var(--accent-gold)'}"></div></div><div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted);margin-top:2px">Konfidenz: ${signalConf(d.signal)}%</div></div>` : ''}
+        ${_conf !== null ? `<div style="margin-top:5px"><div style="width:100%;height:3px;background:rgba(255,255,255,0.1);border-radius:2px"><div style="width:${_conf}%;height:3px;border-radius:2px;background:${_sigColor}"></div></div><div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted);margin-top:2px">Konfidenz: ${_conf}%</div></div>` : ''}
       </div>
       <div class="signal-card">
         <div class="signal-card-title">RSI (14)</div>
@@ -2913,16 +2926,21 @@ async function loadAiAnalysis() {
   }
 }
 
+function resetAndReloadAiAnalysis() {
+  aiAnalysisData = null;
+  aiAnalysisSymbol = null;
+  loadAiAnalysis();
+}
+
 function renderAiAnalysisCard(data) {
   const card = document.getElementById('aiAnalysisCard');
   if(!card || !data?.ai) return;
   const ai = data.ai;
   const recColor = {KAUFEN:'var(--accent-green)',VERKAUFEN:'var(--accent-red)',BEOBACHTEN:'var(--accent-cyan)',HALTEN:'var(--accent-gold)'}[ai.recommendation] || 'var(--text-muted)';
-  const regimeMap = {TRENDING_UP:'TREND ↑',TRENDING_DOWN:'TREND ↓',RANGING:'SEITWÄRTS',VOLATILE:'VOLATIL'};
-  const regimeLabel = regimeMap[ai.market_regime] || ai.market_regime || '';
+  const regimeDisp = MARKET_REGIME_DISPLAY[ai.market_regime];
   const horizonColor = {'kurzfristig (1-5T)':'var(--accent-cyan)','mittelfristig (2-8W)':'var(--accent-gold)','langfristig (3-6M)':'var(--accent-green)'}[ai.time_horizon] || 'var(--text-muted)';
   const risksHtml = (ai.key_risks||[]).map(r =>
-    `<div style="font-size:9px;color:var(--text-secondary);padding:2px 0 2px 8px;border-left:2px solid rgba(255,59,92,0.4)">${r}</div>`
+    `<div style="font-size:9px;color:var(--text-secondary);padding:2px 0 2px 8px;border-left:2px solid rgba(255,59,92,0.4)">${escapeHtml(r)}</div>`
   ).join('');
   const e = ai.entry_strategy || {};
   const setupHtml = e.entry ? `
@@ -2936,7 +2954,7 @@ function renderAiAnalysisCard(data) {
   card.innerHTML = `
     <div class="panel-card-title">KI-ANALYSE <span style="font-size:8px;color:var(--accent-cyan);margin-left:4px;letter-spacing:0">claude</span></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-      <div style="font-size:22px;font-weight:800;color:${recColor};font-family:'Space Mono',monospace;letter-spacing:2px">${ai.recommendation||'—'}</div>
+      <div style="font-size:22px;font-weight:800;color:${recColor};font-family:'Space Mono',monospace;letter-spacing:2px">${escapeHtml(ai.recommendation||'—')}</div>
       <div style="text-align:right">
         <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted)">Konfidenz</div>
         <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${recColor}">${ai.confidence||0}%</div>
@@ -2946,15 +2964,15 @@ function renderAiAnalysisCard(data) {
       <div style="width:${ai.confidence||0}%;height:4px;border-radius:2px;background:${recColor};transition:width 0.5s"></div>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-      ${regimeLabel ? `<span style="font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.05);color:var(--text-muted)">${regimeLabel}</span>` : ''}
-      ${ai.time_horizon ? `<span style="font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.05);color:${horizonColor}">${ai.time_horizon}</span>` : ''}
+      ${regimeDisp ? `<span style="font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.05);color:${regimeDisp.color}">${regimeDisp.label}</span>` : ''}
+      ${ai.time_horizon ? `<span style="font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.05);color:${horizonColor}">${escapeHtml(ai.time_horizon)}</span>` : ''}
     </div>
-    ${ai.rationale ? `<div style="font-size:10px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px;padding:8px;background:rgba(0,212,255,0.04);border-radius:4px;border-left:2px solid rgba(0,212,255,0.2)">${ai.rationale}</div>` : ''}
+    ${ai.rationale ? `<div style="font-size:10px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px;padding:8px;background:rgba(0,212,255,0.04);border-radius:4px;border-left:2px solid rgba(0,212,255,0.2)">${escapeHtml(ai.rationale)}</div>` : ''}
     ${risksHtml ? `<div style="margin-bottom:8px"><div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted);letter-spacing:1px;margin-bottom:4px">RISIKEN</div><div style="display:flex;flex-direction:column;gap:3px">${risksHtml}</div></div>` : ''}
     ${setupHtml ? `<div><div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted);letter-spacing:1px">KI TRADE-SETUP</div>${setupHtml}</div>` : ''}
     <div style="margin-top:10px;display:flex;justify-content:flex-end;align-items:center;gap:8px">
       ${cachedMin !== null ? `<span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted)">Cache ~${cachedMin}min</span>` : ''}
-      <button onclick="aiAnalysisData=null;aiAnalysisSymbol=null;loadAiAnalysis()" style="background:none;border:1px solid rgba(0,212,255,0.2);color:var(--accent-cyan);font-family:'Space Mono',monospace;font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer">↺ NEU</button>
+      <button onclick="resetAndReloadAiAnalysis()" style="background:none;border:1px solid rgba(0,212,255,0.2);color:var(--accent-cyan);font-family:'Space Mono',monospace;font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer">↺ NEU</button>
     </div>`;
 }
 

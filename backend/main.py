@@ -27,9 +27,9 @@ except ImportError:
 _cache: dict = {}  # key → {"data": ..., "ts": float}
 CACHE_TTL = 300    # 5 Minuten
 
-def cache_get(key: str):
+def cache_get(key: str, ttl: int = CACHE_TTL):
     entry = _cache.get(key)
-    if entry and (time.time() - entry["ts"]) < CACHE_TTL:
+    if entry and (time.time() - entry["ts"]) < ttl:
         return entry["data"]
     return None
 
@@ -53,13 +53,6 @@ except ImportError:
     AI_AVAILABLE = False
 
 AI_CACHE_TTL = 1800  # 30 Minuten
-
-
-def cache_get_ai(key: str):
-    entry = _cache.get(key)
-    if entry and (time.time() - entry["ts"]) < AI_CACHE_TTL:
-        return entry["data"]
-    return None
 
 
 app = FastAPI(title="APEX TRADE API", version="2.0.0")
@@ -956,8 +949,6 @@ def get_asset_detail(symbol: str, period: str = "3mo", interval: str = "1d"):
     except Exception:
         ich_tenkan_s = ich_kijun_s = ich_spanA_s = ich_spanB_s = close * float("nan")
 
-    signal = calculate_signal(rsi, macd_hist, price, ma50, ma200)
-
     # Erweiterter Signal-Score mit Konfidenz
     adx_val   = safe_float(adx_s.iloc[-1])
     cci_val   = safe_float(cci_s.iloc[-1])
@@ -1603,12 +1594,14 @@ async def get_ai_analysis(symbol: str):
         raise HTTPException(status_code=503, detail="KI-Analyse nicht verfügbar: ANTHROPIC_API_KEY nicht konfiguriert.")
 
     cache_key = f"ai_{symbol}"
-    cached = cache_get_ai(cache_key)
+    cached = cache_get(cache_key, ttl=AI_CACHE_TTL)
     if cached is not None:
         return cached
 
     config = ASSETS.get(symbol, {"ticker": symbol, "fallback": symbol, "name": symbol, "type": "stock", "unit": "$"})
-    df, used_ticker = fetch_df(symbol, "3mo")
+    # 1y-Daten einmalig laden; 3M-Slice für Indikatoren, volles Jahr für Momentum
+    df_1y, used_ticker = fetch_df(symbol, "1y")
+    df     = df_1y.iloc[-63:] if len(df_1y) >= 63 else df_1y  # ~3 Monate
     close  = df["Close"]
     high   = df["High"]
     low    = df["Low"]
@@ -1650,14 +1643,13 @@ async def get_ai_analysis(symbol: str):
     market_regime = detect_market_regime(price, ma50, ma200, adx_val, atr_pct)
     levels        = get_support_resistance(df, price)
 
-    # Momentum (1M / 3M / 6M)
+    # Momentum (1M / 3M / 6M) – nutzt bereits geladene 1y-Daten
     momentum: dict = {}
     try:
-        df_1y, _ = fetch_df(symbol, "1y")
-        c = df_1y["Close"]
+        c = df_1y["Close"].values
         for days, key in [(21, "1m"), (63, "3m"), (126, "6m")]:
-            if len(c) >= days:
-                momentum[key] = round((float(c.iloc[-1]) - float(c.iloc[-days])) / float(c.iloc[-days]) * 100, 2)
+            if len(c) >= days and c[-days] != 0:
+                momentum[key] = round((c[-1] - c[-days]) / c[-days] * 100, 2)
     except Exception:
         pass
 
@@ -1681,7 +1673,7 @@ async def get_ai_analysis(symbol: str):
 
     try:
         import asyncio, json as _json
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _call_claude():
             msg = _ANTHROPIC_CLIENT.messages.create(
