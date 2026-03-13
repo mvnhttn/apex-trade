@@ -338,91 +338,125 @@
   .tab-btn.active { color:var(--accent-cyan); border-bottom-color:var(--accent-cyan); }
 
   /* ── PROFIL / LOGIN SYSTEM ──────────────────────────────────────────── */
+  /* ── PROFIL / LOGIN SYSTEM ──────────────────────────────────────────── */
   .profile-overlay {
     position:fixed; inset:0; z-index:1000;
     background:rgba(8,11,15,0.97);
     display:flex; align-items:center; justify-content:center;
-    backdrop-filter:blur(10px);
+    backdrop-filter:blur(12px);
   }
   .profile-overlay.hidden { display:none !important; }
   .profile-modal {
     background:var(--bg-card); border:1px solid var(--border-bright);
-    border-radius:16px; padding:40px; width:380px; max-width:90vw;
-    box-shadow:0 0 60px rgba(0,212,255,0.1);
+    border-radius:18px; padding:44px 40px; width:400px; max-width:94vw;
+    box-shadow:0 0 80px rgba(0,212,255,0.12);
+    animation:fadeIn .25s ease;
   }
   .profile-modal-logo {
-    font-family:'Space Mono',monospace; font-size:18px; font-weight:700;
-    letter-spacing:5px; color:var(--accent-cyan); text-shadow:var(--glow-cyan);
-    text-align:center; margin-bottom:8px;
+    font-family:'Space Mono',monospace; font-size:20px; font-weight:700;
+    letter-spacing:6px; color:var(--accent-cyan); text-shadow:var(--glow-cyan);
+    text-align:center; margin-bottom:6px;
   }
   .profile-modal-sub {
     font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px;
-    color:var(--text-muted); text-align:center; margin-bottom:32px;
+    color:var(--text-muted); text-align:center; margin-bottom:36px;
   }
-  .profile-list { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
+  .profile-list { display:flex; flex-direction:column; gap:8px; margin-bottom:8px; }
   .profile-item {
     display:flex; align-items:center; gap:12px;
-    padding:12px 14px; border-radius:8px;
+    padding:13px 14px; border-radius:10px;
     border:1px solid var(--border); background:var(--bg-secondary);
     cursor:pointer; transition:all 0.15s;
   }
-  .profile-item:hover { border-color:var(--accent-cyan); background:rgba(0,212,255,0.05); }
+  .profile-item:hover { border-color:var(--accent-cyan); background:rgba(0,212,255,0.06); }
   .profile-avatar {
-    width:36px; height:36px; border-radius:50%;
+    width:38px; height:38px; border-radius:50%;
     display:flex; align-items:center; justify-content:center;
-    font-family:'Space Mono',monospace; font-size:13px; font-weight:700;
-    flex-shrink:0;
+    font-family:'Space Mono',monospace; font-size:14px; font-weight:700; flex-shrink:0;
   }
-  .profile-item-name { font-size:13px; font-weight:700; flex:1; }
-  .profile-item-date { font-family:'Space Mono',monospace; font-size:9px; color:var(--text-muted); }
-  .profile-item-del {
-    background:none; border:none; color:var(--text-muted); cursor:pointer;
-    font-size:14px; padding:4px; border-radius:4px; transition:color 0.15s;
-  }
-  .profile-item-del:hover { color:var(--accent-red); }
+  .profile-item-info { flex:1; }
+  .profile-item-name { font-size:13px; font-weight:700; }
+  .profile-item-date { font-family:'Space Mono',monospace; font-size:9px; color:var(--text-muted); margin-top:2px; }
   .profile-divider {
-    display:flex; align-items:center; gap:10px; margin:16px 0;
+    display:flex; align-items:center; gap:10px; margin:18px 0 14px;
     font-family:'Space Mono',monospace; font-size:9px; color:var(--text-muted);
   }
-  .profile-divider::before, .profile-divider::after {
-    content:''; flex:1; height:1px; background:var(--border);
-  }
+  .profile-divider::before, .profile-divider::after { content:''; flex:1; height:1px; background:var(--border); }
   .profile-input {
-    width:100%; padding:10px 12px; border-radius:6px;
+    width:100%; padding:11px 13px; border-radius:7px;
     border:1px solid var(--border); background:var(--bg-secondary);
     color:var(--text-primary); font-family:'Space Mono',monospace; font-size:11px;
-    outline:none; transition:border-color 0.15s; box-sizing:border-box;
-    margin-bottom:10px;
+    outline:none; transition:border-color 0.15s; box-sizing:border-box; margin-bottom:10px;
   }
   .profile-input:focus { border-color:var(--accent-cyan); }
-  .profile-create-btn {
-    width:100%; padding:11px; border-radius:6px;
-    background:rgba(0,212,255,0.1); border:1px solid rgba(0,212,255,0.4);
-    color:var(--accent-cyan); font-family:'Space Mono',monospace;
-    font-size:10px; font-weight:700; letter-spacing:2px;
-    cursor:pointer; transition:all 0.15s;
+  .profile-input.error { border-color:var(--accent-red); }
+  .profile-btn {
+    width:100%; padding:12px; border-radius:7px;
+    font-family:'Space Mono',monospace; font-size:10px; font-weight:700;
+    letter-spacing:2px; cursor:pointer; transition:all 0.15s; margin-bottom:8px;
   }
-  .profile-create-btn:hover { background:rgba(0,212,255,0.2); }
-  .profile-color-row { display:flex; gap:8px; margin-bottom:12px; justify-content:center; }
+  .profile-btn.primary {
+    background:rgba(0,212,255,0.12); border:1px solid rgba(0,212,255,0.45); color:var(--accent-cyan);
+  }
+  .profile-btn.primary:hover { background:rgba(0,212,255,0.22); }
+  .profile-btn.secondary {
+    background:transparent; border:1px solid var(--border); color:var(--text-muted);
+  }
+  .profile-btn.secondary:hover { border-color:var(--border-bright); color:var(--text-primary); }
+  .profile-btn.danger {
+    background:rgba(255,59,92,0.1); border:1px solid rgba(255,59,92,0.4); color:var(--accent-red);
+  }
+  .profile-btn.danger:hover { background:rgba(255,59,92,0.2); }
+  .profile-error {
+    background:rgba(255,59,92,0.08); border:1px solid rgba(255,59,92,0.3);
+    border-radius:6px; padding:9px 12px; margin-bottom:10px;
+    font-family:'Space Mono',monospace; font-size:10px; color:var(--accent-red);
+    display:none;
+  }
+  .profile-color-row { display:flex; gap:8px; margin-bottom:14px; justify-content:center; }
   .profile-color-dot {
-    width:24px; height:24px; border-radius:50%; cursor:pointer;
+    width:26px; height:26px; border-radius:50%; cursor:pointer;
     border:2px solid transparent; transition:all 0.15s;
   }
-  .profile-color-dot.selected { border-color:white; transform:scale(1.2); }
-  /* Profile badge in header */
+  .profile-color-dot.selected { border-color:white; transform:scale(1.25); }
+  .profile-back {
+    background:none; border:none; color:var(--text-muted); cursor:pointer;
+    font-family:'Space Mono',monospace; font-size:9px; letter-spacing:1px;
+    margin-bottom:20px; display:flex; align-items:center; gap:6px;
+    padding:0; transition:color .15s;
+  }
+  .profile-back:hover { color:var(--text-primary); }
+  /* Header profile badge + dropdown */
   .profile-badge {
-    display:flex; align-items:center; gap:8px;
-    padding:5px 12px; border-radius:6px;
+    position:relative; display:flex; align-items:center; gap:8px;
+    padding:5px 12px; border-radius:7px;
     border:1px solid var(--border); background:var(--bg-card);
-    cursor:pointer; transition:all 0.15s;
+    cursor:pointer; transition:all 0.15s; user-select:none;
   }
   .profile-badge:hover { border-color:var(--accent-cyan); }
   .profile-badge-avatar {
-    width:22px; height:22px; border-radius:50%;
+    width:24px; height:24px; border-radius:50%;
     display:flex; align-items:center; justify-content:center;
-    font-family:'Space Mono',monospace; font-size:9px; font-weight:700;
+    font-family:'Space Mono',monospace; font-size:10px; font-weight:700;
   }
   .profile-badge-name { font-family:'Space Mono',monospace; font-size:9px; color:var(--text-secondary); }
+  .profile-dropdown {
+    position:absolute; top:calc(100% + 8px); right:0; z-index:200;
+    background:var(--bg-card); border:1px solid var(--border-bright);
+    border-radius:10px; min-width:190px; box-shadow:0 8px 32px rgba(0,0,0,0.4);
+    overflow:hidden; display:none;
+  }
+  .profile-dropdown.open { display:block; animation:fadeIn .15s ease; }
+  .profile-dd-item {
+    display:flex; align-items:center; gap:10px;
+    padding:11px 14px; font-family:'Space Mono',monospace; font-size:10px;
+    color:var(--text-secondary); cursor:pointer; transition:background .12s;
+    border-bottom:1px solid rgba(30,45,61,0.5);
+  }
+  .profile-dd-item:last-child { border-bottom:none; }
+  .profile-dd-item:hover { background:var(--bg-hover); color:var(--text-primary); }
+  .profile-dd-item.red { color:var(--accent-red); }
+  .profile-dd-item.red:hover { background:rgba(255,59,92,0.08); }
 
   /* ── REPORT PANEL ────────────────────────────────────────────────── */
   .report-panel-wrap {
@@ -1164,9 +1198,16 @@
     <div class="ticker-item"><span class="ticker-name">LADEN...</span></div>
   </div>
   <div class="header-right">
-    <div id="profileHeaderBadge" class="profile-badge hidden" onclick="showProfileOverlay()">
+    <div id="profileHeaderBadge" class="profile-badge hidden" onclick="toggleProfileDropdown()">
       <div id="profileHeaderAvatar" class="profile-badge-avatar"></div>
       <div id="profileHeaderName" class="profile-badge-name">—</div>
+      <span style="font-family:'Space Mono',monospace;font-size:8px;color:var(--text-muted);margin-left:2px">▾</span>
+      <div class="profile-dropdown" id="profileDropdown">
+        <div class="profile-dd-item" onclick="event.stopPropagation();showProfileMgmt('pw')">🔑 Passwort ändern</div>
+        <div class="profile-dd-item" onclick="event.stopPropagation();showProfileMgmt('info')">◈ Profil-Info</div>
+        <div class="profile-dd-item" onclick="event.stopPropagation();closeDropdownAndSwitch()">⇄ Profil wechseln</div>
+        <div class="profile-dd-item red" onclick="event.stopPropagation();profileLogout()">↩ Abmelden</div>
+      </div>
     </div>
     <button class="refresh-btn" id="refreshBtn" onclick="refreshAll()">↻ REFRESH</button>
     <div class="header-time">
@@ -1601,6 +1642,14 @@
     <div class="profile-modal-logo">APEX TRADE</div>
     <div class="profile-modal-sub">PERSONAL TRADING INTELLIGENCE</div>
     <div id="profileModalContent"></div>
+  </div>
+</div>
+<!-- Profil-Verwaltungs-Modal -->
+<div id="profileMgmtOverlay" class="profile-overlay hidden">
+  <div class="profile-modal">
+    <div class="profile-modal-logo">APEX TRADE</div>
+    <div class="profile-modal-sub">PROFIL VERWALTEN</div>
+    <div id="profileMgmtContent"></div>
   </div>
 </div>
 
@@ -4373,145 +4422,283 @@ function renderReportII(d) {
 }
 
 // ══════════════════════════════════════════
-// ── PROFIL SYSTEM ──────────────────────────
+// ══════════════════════════════════════════
+// ── PROFIL SYSTEM (v2 – mit Passwort) ─────
 // ══════════════════════════════════════════
 const PROFILE_COLORS = ['#00d4ff','#00ff88','#ffd700','#ff8c42','#b400ff','#ff3b5c','#627eea','#f7931a'];
 let currentProfileId = null;
 
-function getProfiles() {
-  return JSON.parse(localStorage.getItem('apexProfiles') || '[]');
-}
-function saveProfiles(profiles) {
-  localStorage.setItem('apexProfiles', JSON.stringify(profiles));
+// Einfaches Hash (base64 – ausreichend für lokale App)
+function hashPw(pw) { return btoa(unescape(encodeURIComponent(pw))); }
+function checkPw(pw, hash) { return hashPw(pw) === hash; }
+
+function getProfiles() { return JSON.parse(localStorage.getItem('apexProfiles') || '[]'); }
+function saveProfiles(p) { localStorage.setItem('apexProfiles', JSON.stringify(p)); }
+
+// ── Migration: legt mvnhttn/12345 an wenn noch kein Profil existiert ──
+function migrateAndInit() {
+  if (localStorage.getItem('apexMigrated')) return;
+  const existing = {
+    journal:      localStorage.getItem('apexJournal')      || '[]',
+    portfolio:    localStorage.getItem('apexPortfolio')    || '[]',
+    watchlist:    localStorage.getItem('apexWatchlist')    || '[]',
+    alerts:       localStorage.getItem('apexAlerts')       || '[]',
+    customAssets: localStorage.getItem('apexCustomAssets') || '[]',
+    checklist:    localStorage.getItem('apexChecklist')    || '{}',
+  };
+  const profile = { id:'p_mvnhttn', name:'mvnhttn', color:'#00d4ff',
+                    created: new Date().toISOString(), pwHash: hashPw('12345') };
+  saveProfiles([profile]);
+  localStorage.setItem('apex_data_p_mvnhttn', JSON.stringify(existing));
+  localStorage.setItem('apexMigrated', '1');
 }
 
 function initProfileSystem() {
+  migrateAndInit();
   const profiles = getProfiles();
   const savedId  = localStorage.getItem('apexCurrentProfile');
-  if (profiles.length === 0) {
-    showProfileOverlay();
-  } else if (!savedId || !profiles.find(p => p.id === savedId)) {
+  if (profiles.length === 0 || !savedId || !profiles.find(p => p.id === savedId)) {
     showProfileOverlay();
   } else {
-    activateProfile(savedId, false);
+    updateHeaderBadge(savedId);
+    currentProfileId = savedId;
   }
 }
 
+// ── LOGIN OVERLAY ─────────────────────────
 function showProfileOverlay() {
   document.getElementById('profileOverlay').classList.remove('hidden');
-  renderProfileModal();
+  renderLoginScreen();
 }
-
 function hideProfileOverlay() {
   document.getElementById('profileOverlay').classList.add('hidden');
 }
 
-function renderProfileModal() {
+function renderLoginScreen() {
   const profiles = getProfiles();
   const el = document.getElementById('profileModalContent');
   let html = '';
-
   if (profiles.length > 0) {
-    html += `<div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-muted);margin-bottom:12px">PROFIL WÄHLEN</div>`;
-    html += `<div class="profile-list">`;
+    html += `<div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-muted);margin-bottom:14px;text-align:center">PROFIL AUSWÄHLEN</div>
+    <div class="profile-list">`;
     profiles.forEach(p => {
-      html += `
-        <div class="profile-item" onclick="selectProfile('${p.id}')">
-          <div class="profile-avatar" style="background:${p.color}22;color:${p.color}">${p.name.charAt(0).toUpperCase()}</div>
-          <div>
-            <div class="profile-item-name">${p.name}</div>
-            <div class="profile-item-date">Erstellt ${new Date(p.created).toLocaleDateString('de-DE')}</div>
-          </div>
-          <button class="profile-item-del" onclick="event.stopPropagation();deleteProfile('${p.id}')" title="Profil löschen">✕</button>
-        </div>`;
+      html += `<div class="profile-item" onclick="showLoginForm('${p.id}')">
+        <div class="profile-avatar" style="background:${p.color}22;color:${p.color}">${p.name.charAt(0).toUpperCase()}</div>
+        <div class="profile-item-info">
+          <div class="profile-item-name">${p.name}</div>
+          <div class="profile-item-date">Erstellt ${new Date(p.created).toLocaleDateString('de-DE')}</div>
+        </div>
+        <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted)">→</span>
+      </div>`;
     });
     html += `</div>`;
-    html += `<div class="profile-divider">ODER NEUES PROFIL</div>`;
-  } else {
-    html += `<div style="font-size:13px;font-weight:700;margin-bottom:6px;text-align:center">Willkommen bei APEX TRADE</div>`;
-    html += `<div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text-secondary);text-align:center;margin-bottom:24px">Erstelle dein persönliches Profil</div>`;
   }
-
-  html += `
-    <div id="newProfileColorRow" class="profile-color-row">
-      ${PROFILE_COLORS.map((c,i) => `<div class="profile-color-dot${i===0?' selected':''}" style="background:${c}" onclick="selectProfileColor('${c}',this)"></div>`).join('')}
-    </div>
-    <input class="profile-input" id="newProfileName" type="text" placeholder="Profilname (z.B. Adrian)" maxlength="20">
-    <button class="profile-create-btn" onclick="createProfile()">+ PROFIL ERSTELLEN</button>`;
-
+  html += `<div class="profile-divider">${profiles.length ? 'ODER NEUES PROFIL' : 'PROFIL ERSTELLEN'}</div>`;
+  html += `<button class="profile-btn secondary" onclick="renderCreateScreen()">+ Neues Profil erstellen</button>`;
   el.innerHTML = html;
-  window._selectedProfileColor = PROFILE_COLORS[0];
 }
 
-function selectProfileColor(color, el) {
-  document.querySelectorAll('.profile-color-dot').forEach(d => d.classList.remove('selected'));
-  el.classList.add('selected');
-  window._selectedProfileColor = color;
-}
-
-function createProfile() {
-  const name = document.getElementById('newProfileName').value.trim();
-  if (!name) { document.getElementById('newProfileName').focus(); return; }
-  const profile = {
-    id: 'p_' + Date.now(),
-    name,
-    color: window._selectedProfileColor || PROFILE_COLORS[0],
-    created: new Date().toISOString(),
-  };
+function showLoginForm(id) {
   const profiles = getProfiles();
+  const p = profiles.find(x => x.id === id);
+  if (!p) return;
+  const el = document.getElementById('profileModalContent');
+  el.innerHTML = `
+    <button class="profile-back" onclick="renderLoginScreen()">← Zurück</button>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+      <div class="profile-avatar" style="width:48px;height:48px;font-size:18px;background:${p.color}22;color:${p.color}">${p.name.charAt(0).toUpperCase()}</div>
+      <div><div style="font-size:16px;font-weight:800">${p.name}</div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);margin-top:3px">PASSWORT EINGEBEN</div></div>
+    </div>
+    <div id="loginError" class="profile-error">Falsches Passwort. Bitte erneut versuchen.</div>
+    <input class="profile-input" id="loginPwInput" type="password" placeholder="Passwort" onkeydown="if(event.key==='Enter')doLogin('${id}')">
+    <button class="profile-btn primary" onclick="doLogin('${id}')">ANMELDEN</button>`;
+  setTimeout(() => document.getElementById('loginPwInput')?.focus(), 50);
+}
+
+function doLogin(id) {
+  const pw    = document.getElementById('loginPwInput')?.value || '';
+  const profiles = getProfiles();
+  const p     = profiles.find(x => x.id === id);
+  const errEl = document.getElementById('loginError');
+  if (!p) return;
+  if (!checkPw(pw, p.pwHash)) {
+    errEl.style.display = 'block';
+    const inp = document.getElementById('loginPwInput');
+    if (inp) { inp.classList.add('error'); inp.value = ''; inp.focus(); }
+    return;
+  }
+  errEl.style.display = 'none';
+  activateProfile(id);
+  hideProfileOverlay();
+}
+
+function renderCreateScreen() {
+  const el = document.getElementById('profileModalContent');
+  el.innerHTML = `
+    <button class="profile-back" onclick="renderLoginScreen()">← Zurück</button>
+    <div style="font-size:14px;font-weight:700;margin-bottom:20px">Neues Profil</div>
+    <div class="profile-color-row" id="createColorRow">
+      ${PROFILE_COLORS.map((c,i) => `<div class="profile-color-dot${i===0?' selected':''}" style="background:${c}" onclick="pickColor('${c}',this)"></div>`).join('')}
+    </div>
+    <div id="createError" class="profile-error"></div>
+    <input class="profile-input" id="createName" type="text" placeholder="Benutzername" maxlength="24">
+    <input class="profile-input" id="createPw"   type="password" placeholder="Passwort">
+    <input class="profile-input" id="createPw2"  type="password" placeholder="Passwort bestätigen" onkeydown="if(event.key==='Enter')doCreateProfile()">
+    <button class="profile-btn primary" onclick="doCreateProfile()">PROFIL ERSTELLEN</button>`;
+  window._newColor = PROFILE_COLORS[0];
+  setTimeout(() => document.getElementById('createName')?.focus(), 50);
+}
+
+function pickColor(c, el) {
+  document.querySelectorAll('#createColorRow .profile-color-dot').forEach(d => d.classList.remove('selected'));
+  el.classList.add('selected');
+  window._newColor = c;
+}
+
+function doCreateProfile() {
+  const name = document.getElementById('createName')?.value.trim() || '';
+  const pw   = document.getElementById('createPw')?.value  || '';
+  const pw2  = document.getElementById('createPw2')?.value || '';
+  const err  = document.getElementById('createError');
+  if (!name)       { err.style.display='block'; err.textContent='Bitte Benutzernamen eingeben.'; return; }
+  if (!pw)         { err.style.display='block'; err.textContent='Bitte Passwort eingeben.'; return; }
+  if (pw !== pw2)  { err.style.display='block'; err.textContent='Passwörter stimmen nicht überein.'; return; }
+  const profiles = getProfiles();
+  if (profiles.find(p => p.name.toLowerCase() === name.toLowerCase())) {
+    err.style.display='block'; err.textContent='Benutzername bereits vergeben.'; return;
+  }
+  const profile = { id:'p_'+Date.now(), name, color: window._newColor||PROFILE_COLORS[0],
+                    created: new Date().toISOString(), pwHash: hashPw(pw) };
   profiles.push(profile);
   saveProfiles(profiles);
-  activateProfile(profile.id, true);
+  activateProfile(profile.id);
   hideProfileOverlay();
 }
 
-function selectProfile(id) {
+// ── PROFIL AKTIVIEREN / BADGE ─────────────
+function activateProfile(id) {
   saveCurrentProfileData();
-  activateProfile(id, true);
-  hideProfileOverlay();
-}
-
-function deleteProfile(id) {
-  if (!confirm('Profil und alle Daten löschen?')) return;
-  const profiles = getProfiles().filter(p => p.id !== id);
-  saveProfiles(profiles);
-  localStorage.removeItem(`apex_data_${id}`);
-  if (currentProfileId === id) {
-    currentProfileId = null;
-    localStorage.removeItem('apexCurrentProfile');
-  }
-  renderProfileModal();
-}
-
-function activateProfile(id, load) {
-  const profiles = getProfiles();
-  const profile  = profiles.find(p => p.id === id);
-  if (!profile) return;
-  if (load) loadProfileData(id);
   currentProfileId = id;
   localStorage.setItem('apexCurrentProfile', id);
-  // Update header badge
+  loadProfileData(id);
+  updateHeaderBadge(id);
+}
+
+function updateHeaderBadge(id) {
+  const p = getProfiles().find(x => x.id === id);
+  if (!p) return;
   const badge  = document.getElementById('profileHeaderBadge');
   const avatar = document.getElementById('profileHeaderAvatar');
   const pname  = document.getElementById('profileHeaderName');
-  if (badge && avatar && pname) {
-    avatar.style.background = profile.color + '22';
-    avatar.style.color = profile.color;
-    avatar.textContent = profile.name.charAt(0).toUpperCase();
-    pname.textContent  = profile.name;
-    badge.classList.remove('hidden');
+  if (!badge) return;
+  avatar.style.background = p.color + '22';
+  avatar.style.color      = p.color;
+  avatar.textContent      = p.name.charAt(0).toUpperCase();
+  pname.textContent       = p.name;
+  badge.classList.remove('hidden');
+}
+
+// ── DROPDOWN ──────────────────────────────
+function toggleProfileDropdown() {
+  const dd = document.getElementById('profileDropdown');
+  dd.classList.toggle('open');
+  setTimeout(() => document.addEventListener('click', closeDropdown, { once:true }), 0);
+}
+function closeDropdown() { document.getElementById('profileDropdown')?.classList.remove('open'); }
+function closeDropdownAndSwitch() { closeDropdown(); saveCurrentProfileData(); showProfileOverlay(); }
+function profileLogout() {
+  closeDropdown();
+  saveCurrentProfileData();
+  currentProfileId = null;
+  localStorage.removeItem('apexCurrentProfile');
+  document.getElementById('profileHeaderBadge')?.classList.add('hidden');
+  showProfileOverlay();
+}
+
+// ── PROFIL-VERWALTUNG MODAL ────────────────
+function showProfileMgmt(view) {
+  closeDropdown();
+  document.getElementById('profileMgmtOverlay').classList.remove('hidden');
+  renderMgmt(view);
+}
+function hideProfileMgmt() { document.getElementById('profileMgmtOverlay').classList.add('hidden'); }
+
+function renderMgmt(view) {
+  const profiles = getProfiles();
+  const p = profiles.find(x => x.id === currentProfileId);
+  if (!p) return;
+  const el = document.getElementById('profileMgmtContent');
+
+  if (view === 'pw') {
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <div class="profile-avatar" style="width:42px;height:42px;font-size:16px;background:${p.color}22;color:${p.color}">${p.name.charAt(0).toUpperCase()}</div>
+        <div style="font-size:14px;font-weight:700">${p.name}</div>
+      </div>
+      <div id="mgmtError" class="profile-error"></div>
+      <input class="profile-input" id="mgmtOldPw"  type="password" placeholder="Aktuelles Passwort">
+      <input class="profile-input" id="mgmtNewPw"  type="password" placeholder="Neues Passwort">
+      <input class="profile-input" id="mgmtNewPw2" type="password" placeholder="Neues Passwort bestätigen">
+      <button class="profile-btn primary" onclick="doChangePw()">PASSWORT ÄNDERN</button>
+      <button class="profile-btn secondary" style="margin-top:4px" onclick="hideProfileMgmt()">ABBRECHEN</button>`;
+    setTimeout(() => document.getElementById('mgmtOldPw')?.focus(), 50);
+  } else {
+    // Info view
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px">
+        <div class="profile-avatar" style="width:56px;height:56px;font-size:22px;background:${p.color}22;color:${p.color}">${p.name.charAt(0).toUpperCase()}</div>
+        <div>
+          <div style="font-size:18px;font-weight:800">${p.name}</div>
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);margin-top:4px">ID: ${p.id}</div>
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);margin-top:2px">Erstellt: ${new Date(p.created).toLocaleDateString('de-DE')}</div>
+        </div>
+      </div>
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-muted);margin-bottom:10px">DATEN-ÜBERSICHT</div>
+        <div style="font-family:'Space Mono',monospace;font-size:10px;display:flex;flex-direction:column;gap:5px;color:var(--text-secondary)">
+          <div>Journal-Einträge: <span style="color:var(--accent-cyan)">${JSON.parse(localStorage.getItem('apexJournal')||'[]').length}</span></div>
+          <div>Portfolio-Positionen: <span style="color:var(--accent-cyan)">${JSON.parse(localStorage.getItem('apexPortfolio')||'[]').length}</span></div>
+          <div>Watchlist: <span style="color:var(--accent-cyan)">${JSON.parse(localStorage.getItem('apexWatchlist')||'[]').length} Assets</span></div>
+          <div>Custom Assets: <span style="color:var(--accent-cyan)">${JSON.parse(localStorage.getItem('apexCustomAssets')||'[]').length}</span></div>
+        </div>
+      </div>
+      <button class="profile-btn primary" onclick="renderMgmt('pw')">🔑 Passwort ändern</button>
+      <button class="profile-btn secondary" style="margin-top:4px" onclick="hideProfileMgmt()">SCHLIESSEN</button>`;
   }
 }
 
+function doChangePw() {
+  const oldPw = document.getElementById('mgmtOldPw')?.value || '';
+  const newPw = document.getElementById('mgmtNewPw')?.value || '';
+  const newPw2= document.getElementById('mgmtNewPw2')?.value|| '';
+  const err   = document.getElementById('mgmtError');
+  const profiles = getProfiles();
+  const idx = profiles.findIndex(x => x.id === currentProfileId);
+  if (idx < 0) return;
+  if (!checkPw(oldPw, profiles[idx].pwHash)) { err.style.display='block'; err.textContent='Aktuelles Passwort falsch.'; return; }
+  if (!newPw)                                { err.style.display='block'; err.textContent='Bitte neues Passwort eingeben.'; return; }
+  if (newPw !== newPw2)                      { err.style.display='block'; err.textContent='Neue Passwörter stimmen nicht überein.'; return; }
+  profiles[idx].pwHash = hashPw(newPw);
+  saveProfiles(profiles);
+  hideProfileMgmt();
+  // kurze Bestätigung
+  const badge = document.getElementById('profileHeaderBadge');
+  if (badge) { const orig = document.getElementById('profileHeaderName').textContent;
+    document.getElementById('profileHeaderName').textContent = '✓ gespeichert';
+    setTimeout(() => document.getElementById('profileHeaderName').textContent = orig, 2000); }
+}
+
+// ── DATEN SPEICHERN / LADEN ────────────────
 function saveCurrentProfileData() {
   if (!currentProfileId) return;
   const data = {
-    journal:        localStorage.getItem('apexJournal')       || '[]',
-    portfolio:      localStorage.getItem('apexPortfolio')     || '[]',
-    watchlist:      localStorage.getItem('apexWatchlist')     || '[]',
-    alerts:         localStorage.getItem('apexAlerts')        || '[]',
-    customAssets:   localStorage.getItem('apexCustomAssets')  || '[]',
-    checklist:      localStorage.getItem('apexChecklist')     || '{}',
+    journal:      localStorage.getItem('apexJournal')      || '[]',
+    portfolio:    localStorage.getItem('apexPortfolio')    || '[]',
+    watchlist:    localStorage.getItem('apexWatchlist')    || '[]',
+    alerts:       localStorage.getItem('apexAlerts')       || '[]',
+    customAssets: localStorage.getItem('apexCustomAssets') || '[]',
+    checklist:    localStorage.getItem('apexChecklist')    || '{}',
   };
   localStorage.setItem(`apex_data_${currentProfileId}`, JSON.stringify(data));
 }
@@ -4525,18 +4712,14 @@ function loadProfileData(id) {
   localStorage.setItem('apexAlerts',       data.alerts       || '[]');
   localStorage.setItem('apexCustomAssets', data.customAssets || '[]');
   localStorage.setItem('apexChecklist',    data.checklist    || '{}');
-  // Re-initialize all modules
-  loadWatchlist();
-  loadAlerts();
-  loadCustomAssets();
-  loadJournal();
-  loadPortfolio();
-  loadChecklist();
-  if (activeTab === 'journal')    renderJournal();
-  if (activeTab === 'portfolio')  renderPortfolio();
+  try {
+    loadWatchlist(); loadAlerts(); loadCustomAssets();
+    loadJournal(); loadPortfolio(); loadChecklist();
+    if (activeTab === 'journal')   renderJournal();
+    if (activeTab === 'portfolio') renderPortfolio();
+  } catch(e) { /* DOM noch nicht fertig – kein Problem */ }
 }
 
-// Auto-save on page leave
 window.addEventListener('beforeunload', saveCurrentProfileData);
 
 // ── INIT ───────────────────────────────────
