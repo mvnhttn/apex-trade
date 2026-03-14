@@ -1580,7 +1580,7 @@ Gewichte: Trend (MA-Kaskade+ADX) > Momentum (RSI,MACD) > Extremzonen (CCI,Willia
 Achte auf Divergenzen (z.B. RSI überverkauft aber bearisher Trend).
 
 Antworte NUR als JSON (kein Markdown, kein Text davor/danach):
-{{"recommendation":"KAUFEN"|"VERKAUFEN"|"HALTEN"|"BEOBACHTEN","confidence":<0-100>,"rationale":"<2-3 Sätze DE>","key_risks":["<Risiko1>","<Risiko2>","<Risiko3>"],"entry_strategy":{{"entry":<float|null>,"stop_loss":<float|null>,"target":<float|null>,"crv":<float|null>}},"time_horizon":"kurzfristig (1-5T)"|"mittelfristig (2-8W)"|"langfristig (3-6M)","market_regime":"TRENDING_UP"|"TRENDING_DOWN"|"RANGING"|"VOLATILE"}}"""
+{{"recommendation":"KAUFEN"|"VERKAUFEN"|"HALTEN"|"BEOBACHTEN","confidence":<0-100>,"rationale":"<ausführliche Analyse 4-5 Sätze DE mit konkreten Indikatoren>","beginner_summary":"<2-3 Sätze einfache Erklärung für Anfänger DE>","indicator_analysis":{{"trend":"<Trendanalyse MA50/MA200/ADX 2 Sätze>","momentum":"<RSI/MACD/StochRSI Analyse 2 Sätze>","volume":"<OBV/Volumen Analyse 1-2 Sätze>","extremes":"<CCI/Williams%R Überkauf/Überverkauf 1-2 Sätze>"}},"key_risks":["<Risiko1 konkret>","<Risiko2 konkret>","<Risiko3 konkret>"],"opportunities":["<Chance1 konkret>","<Chance2 konkret>"],"entry_strategy":{{"entry":<float|null>,"stop_loss":<float|null>,"target":<float|null>,"crv":<float|null>,"reasoning":"<Begründung für Setup 1-2 Sätze>"}},"time_horizon":"kurzfristig (1-5T)"|"mittelfristig (2-8W)"|"langfristig (3-6M)","market_regime":"TRENDING_UP"|"TRENDING_DOWN"|"RANGING"|"VOLATILE"}}"""
 
 
 @app.get("/api/ai-analysis/{symbol}")
@@ -1678,7 +1678,7 @@ async def get_ai_analysis(symbol: str):
         def _call_claude():
             msg = _ANTHROPIC_CLIENT.messages.create(
                 model="claude-sonnet-4-6",
-                max_tokens=1024,
+                max_tokens=2048,
                 messages=[{"role": "user", "content": prompt}],
             )
             return msg.content[0].text
@@ -1709,4 +1709,252 @@ async def get_ai_analysis(symbol: str):
         "timestamp":     datetime.now().isoformat(),
     }
     _cache[cache_key] = {"data": result, "ts": time.time()}
+    return result
+
+
+# ─────────────────────────────────────────
+# Fundamentaldaten + APEX Score
+# ─────────────────────────────────────────
+
+def _compute_apex_score(info: dict, momentum: dict) -> dict:
+    """Berechnet den APEX Fundamental Score (0-100) aus 6 Komponenten."""
+    scores = {}
+    details = {}
+
+    # 1. Wachstum (25%)
+    rev_growth = info.get("revenueGrowth")
+    eps_growth = info.get("earningsGrowth")
+    growth_pts = []
+    if rev_growth is not None:
+        rg = rev_growth * 100
+        growth_pts.append(100 if rg > 20 else 80 if rg > 10 else 60 if rg > 5 else 40 if rg > 0 else 20)
+        details["revenue_growth"] = f"{round(rg,1)}% YoY"
+    if eps_growth is not None:
+        eg = eps_growth * 100
+        growth_pts.append(100 if eg > 20 else 80 if eg > 10 else 60 if eg > 5 else 40 if eg > 0 else 20)
+    scores["wachstum"] = round(sum(growth_pts) / len(growth_pts)) if growth_pts else 50
+
+    # 2. Profitabilität (20%)
+    gross_m = info.get("grossMargins")
+    op_m = info.get("operatingMargins")
+    roe = info.get("returnOnEquity")
+    prof_pts = []
+    if gross_m is not None:
+        gm = gross_m * 100
+        prof_pts.append(100 if gm > 50 else 80 if gm > 30 else 60 if gm > 15 else 30)
+        details["gross_margin"] = f"{round(gm,1)}%"
+    if op_m is not None:
+        om = op_m * 100
+        prof_pts.append(100 if om > 20 else 80 if om > 10 else 50 if om > 0 else 10)
+    if roe is not None:
+        r = roe * 100
+        prof_pts.append(100 if r > 20 else 75 if r > 10 else 50 if r > 0 else 10)
+    scores["profitabilitaet"] = round(sum(prof_pts) / len(prof_pts)) if prof_pts else 50
+
+    # 3. Finanzielle Gesundheit (15%)
+    de = info.get("debtToEquity")
+    cr = info.get("currentRatio")
+    health_pts = []
+    if de is not None:
+        health_pts.append(100 if de < 30 else 80 if de < 80 else 60 if de < 150 else 30)
+        details["debt_equity"] = f"{round(de,1)}"
+    if cr is not None:
+        health_pts.append(100 if cr > 2 else 75 if cr > 1.5 else 50 if cr > 1 else 20)
+    scores["gesundheit"] = round(sum(health_pts) / len(health_pts)) if health_pts else 50
+
+    # 4. Bewertung (15%)
+    fpe = info.get("forwardPE")
+    pb = info.get("priceToBook")
+    val_pts = []
+    if fpe is not None and fpe > 0:
+        val_pts.append(100 if fpe < 15 else 75 if fpe < 25 else 50 if fpe < 40 else 25)
+        details["forward_pe"] = f"{round(fpe,1)}x"
+    if pb is not None and pb > 0:
+        val_pts.append(100 if pb < 1 else 80 if pb < 3 else 55 if pb < 7 else 25)
+    scores["bewertung"] = round(sum(val_pts) / len(val_pts)) if val_pts else 50
+
+    # 5. Momentum (15%)
+    mom_pts = []
+    for k in ["1m", "3m", "6m"]:
+        v = momentum.get(k)
+        if v is not None:
+            mom_pts.append(100 if v > 15 else 80 if v > 5 else 60 if v > 0 else 30 if v > -10 else 10)
+    scores["momentum"] = round(sum(mom_pts) / len(mom_pts)) if mom_pts else 50
+
+    # 6. Analysten (10%)
+    target = info.get("targetMeanPrice")
+    price_val = info.get("currentPrice") or info.get("regularMarketPrice")
+    rec = info.get("recommendationKey", "").lower()
+    analyst_pts = []
+    if target and price_val and price_val > 0:
+        upside = (target - price_val) / price_val * 100
+        analyst_pts.append(100 if upside > 30 else 80 if upside > 15 else 60 if upside > 5 else 35 if upside > -5 else 15)
+        details["analyst_upside"] = f"{round(upside,1)}%"
+    rec_score = {"strongbuy": 100, "buy": 80, "hold": 55, "underperform": 30, "sell": 15}.get(rec)
+    if rec_score:
+        analyst_pts.append(rec_score)
+    scores["analysten"] = round(sum(analyst_pts) / len(analyst_pts)) if analyst_pts else 50
+
+    # Gewichteter Gesamt-Score
+    weights = {"wachstum": 0.25, "profitabilitaet": 0.20, "gesundheit": 0.15, "bewertung": 0.15, "momentum": 0.15, "analysten": 0.10}
+    total = round(sum(scores[k] * weights[k] for k in weights))
+
+    return {"total": total, "components": scores, "details": details}
+
+
+@app.get("/api/fundamentals/{symbol}")
+async def get_fundamentals(symbol: str):
+    """
+    Fundamentaldaten + APEX Fundamental Score für Aktien.
+    Gibt auch Revenue/Earnings-Verlauf und Company-Info zurück.
+    """
+    symbol = symbol.upper()
+    cache_key = f"fund_{symbol}"
+    cached = cache_get(cache_key, ttl=3600)  # 1h Cache
+    if cached is not None:
+        return cached
+
+    config = ASSETS.get(symbol, {"ticker": symbol, "fallback": symbol, "name": symbol, "type": "stock"})
+    asset_type = config.get("type", "stock")
+
+    if asset_type not in ("stock",):
+        return {
+            "symbol": symbol,
+            "name": config.get("name", symbol),
+            "type": asset_type,
+            "available": False,
+            "message": f"Fundamentaldaten nur für Aktien verfügbar (Typ: {asset_type})"
+        }
+
+    ticker_sym = config.get("ticker", symbol)
+    try:
+        import yfinance as yf
+        tk = yf.Ticker(ticker_sym)
+        info = tk.info or {}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Fehler beim Laden der Daten: {str(e)}")
+
+    # Momentum für Score
+    momentum: dict = {}
+    try:
+        df_1y, _ = fetch_df(symbol, "1y")
+        c = df_1y["Close"].values
+        for days, key in [(21, "1m"), (63, "3m"), (126, "6m")]:
+            if len(c) >= days and c[-days] != 0:
+                momentum[key] = round((c[-1] - c[-days]) / c[-days] * 100, 2)
+    except Exception:
+        pass
+
+    # Key company info
+    current_price = safe_float(info.get("currentPrice") or info.get("regularMarketPrice"))
+
+    company_info = {
+        "name": info.get("longName") or info.get("shortName") or config.get("name", symbol),
+        "sector": info.get("sector"),
+        "industry": info.get("industry"),
+        "country": info.get("country"),
+        "employees": info.get("fullTimeEmployees"),
+        "website": info.get("website"),
+        "description": (info.get("longBusinessSummary", "") or "")[:600],
+        "exchange": info.get("exchange"),
+        "currency": info.get("currency", "USD"),
+    }
+
+    # Key metrics
+    def pct(v):
+        return round(v * 100, 2) if v is not None else None
+
+    metrics = {
+        "price": current_price,
+        "marketCap": info.get("marketCap"),
+        "enterpriseValue": info.get("enterpriseValue"),
+        "trailingPE": safe_float(info.get("trailingPE")),
+        "forwardPE": safe_float(info.get("forwardPE")),
+        "priceToBook": safe_float(info.get("priceToBook")),
+        "priceToSales": safe_float(info.get("priceToSalesTrailing12Months")),
+        "trailingEps": safe_float(info.get("trailingEps")),
+        "forwardEps": safe_float(info.get("forwardEps")),
+        "revenue": info.get("totalRevenue"),
+        "revenueGrowth": pct(info.get("revenueGrowth")),
+        "grossMargin": pct(info.get("grossMargins")),
+        "operatingMargin": pct(info.get("operatingMargins")),
+        "profitMargin": pct(info.get("profitMargins")),
+        "returnOnEquity": pct(info.get("returnOnEquity")),
+        "returnOnAssets": pct(info.get("returnOnAssets")),
+        "debtToEquity": safe_float(info.get("debtToEquity")),
+        "currentRatio": safe_float(info.get("currentRatio")),
+        "freeCashflow": info.get("freeCashflow"),
+        "dividendYield": pct(info.get("dividendYield")),
+        "beta": safe_float(info.get("beta")),
+        "week52High": safe_float(info.get("fiftyTwoWeekHigh")),
+        "week52Low": safe_float(info.get("fiftyTwoWeekLow")),
+        "analystTarget": safe_float(info.get("targetMeanPrice")),
+        "analystTargetLow": safe_float(info.get("targetLowPrice")),
+        "analystTargetHigh": safe_float(info.get("targetHighPrice")),
+        "analystRec": info.get("recommendationKey"),
+        "numAnalysts": info.get("numberOfAnalystOpinions"),
+    }
+
+    # Revenue & Earnings History (annual from financials)
+    annual_revenue = []
+    annual_earnings = []
+    quarterly_revenue = []
+    quarterly_earnings = []
+
+    try:
+        fin = tk.financials  # annual income statement, columns = dates
+        if fin is not None and not fin.empty:
+            cols = sorted(fin.columns, reverse=True)[:4]  # last 4 years
+            for col in reversed(cols):
+                year = str(col.year) if hasattr(col, 'year') else str(col)[:4]
+                rev_row = fin.loc["Total Revenue"] if "Total Revenue" in fin.index else None
+                net_row = fin.loc["Net Income"] if "Net Income" in fin.index else None
+                annual_revenue.append({
+                    "label": year,
+                    "value": int(rev_row[col]) if rev_row is not None and col in rev_row and rev_row[col] == rev_row[col] else None
+                })
+                annual_earnings.append({
+                    "label": year,
+                    "value": int(net_row[col]) if net_row is not None and col in net_row and net_row[col] == net_row[col] else None
+                })
+    except Exception:
+        pass
+
+    try:
+        qfin = tk.quarterly_financials
+        if qfin is not None and not qfin.empty:
+            cols = sorted(qfin.columns, reverse=True)[:6]
+            for col in reversed(cols):
+                label = f"Q{((col.month-1)//3)+1} {col.year}" if hasattr(col, 'month') else str(col)[:7]
+                rev_row = qfin.loc["Total Revenue"] if "Total Revenue" in qfin.index else None
+                net_row = qfin.loc["Net Income"] if "Net Income" in qfin.index else None
+                quarterly_revenue.append({
+                    "label": label,
+                    "value": int(rev_row[col]) if rev_row is not None and col in rev_row and rev_row[col] == rev_row[col] else None
+                })
+                quarterly_earnings.append({
+                    "label": label,
+                    "value": int(net_row[col]) if net_row is not None and col in net_row and net_row[col] == net_row[col] else None
+                })
+    except Exception:
+        pass
+
+    # APEX Score
+    apex_score = _compute_apex_score(info, momentum)
+
+    result = {
+        "symbol": symbol,
+        "available": True,
+        "company": company_info,
+        "metrics": metrics,
+        "annual_revenue": annual_revenue,
+        "annual_earnings": annual_earnings,
+        "quarterly_revenue": quarterly_revenue,
+        "quarterly_earnings": quarterly_earnings,
+        "apex_score": apex_score,
+        "momentum": momentum,
+        "ticker": ticker_sym,
+    }
+
+    cache_set(cache_key, result, ttl=3600)
     return result
