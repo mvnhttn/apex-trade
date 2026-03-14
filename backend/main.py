@@ -1956,5 +1956,5 @@ async def get_fundamentals(symbol: str):
         "ticker": ticker_sym,
     }
 
-    cache_set(cache_key, result, ttl=3600)
+    cache_set(cache_key, result)
     return result
